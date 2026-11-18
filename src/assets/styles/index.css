@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-cream: #FAF9F6;
+    --accent-red: #8B0000;
+    --accent-red-hover: #700000;
+    --accent-red-soft: #F7EBEB;
+    --text-charcoal: #1C1917;
+    --text-stone: #78716C;
+    --border-subtle: #E7E2D7;
+  }
+
+  body {
+    background-color: #FAF9F6;
+    color: #1C1917;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: #1C1917;
+  }
+}
+
+@layer components {
+  /* Boutique Elegant Button Primitives */
+  .btn-primary-boutique {
+    background-color: #8B0000;
+    color: #FAF9F6;
+    border: 1px solid #8B0000;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 0.875rem 2.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: none;
+  }
+
+  .btn-primary-boutique:hover {
+    background-color: #700000;
+    border-color: #700000;
+    transform: translateY(-1px);
+  }
+
+  .btn-outline-boutique {
+    background-color: transparent;
+    color: #1C1917;
+    border: 1px solid #E7E2D7;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 0.875rem 2.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .btn-outline-boutique:hover {
+    border-color: #8B0000;
+    color: #8B0000;
+    background-color: #F7EBEB;
+  }
+
+  /* Hairline aesthetic containers */
+  .boutique-card {
+    background-color: #FFFFFF;
+    border: 1px solid #E7E2D7;
+    transition: border-color 0.3s ease;
+  }
+
+  .boutique-card:hover {
+    border-color: #C5BAA8;
+  }
+}
