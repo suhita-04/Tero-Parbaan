@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-canvas: #FAF8F5;
+    --accent-crimson: #B91C1C;
+    --accent-crimson-hover: #991B1B;
+    --accent-black: #1A1A1A;
+    --accent-gold: #C5A059;
+    --accent-gold-light: #E8D8B5;
+    --text-charcoal: #1A1A1A;
+    --text-stone: #66615C;
+    --border-subtle: #EBE5DC;
+  }
+
+  body {
+    background-color: #FAF8F5;
+    color: #1A1A1A;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cormorant Garamond', 'Noto Serif Bengali', Georgia, serif;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: #1A1A1A;
+  }
+}
+
+@layer components {
+  /* Minimalist Boutique Button Primitives */
+  .btn-crimson {
+    background-color: #B91C1C;
+    color: #FFFFFF;
+    border: 1px solid #B91C1C;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 0.875rem 2.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .btn-crimson:hover {
+    background-color: #991B1B;
+    border-color: #991B1B;
+    transform: translateY(-1px);
+  }
+
+  .btn-outline-boutique {
+    background-color: transparent;
+    color: #1A1A1A;
+    border: 1px solid #EBE5DC;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 0.875rem 2.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .btn-outline-boutique:hover {
+    border-color: #C5A059;
+    color: #B91C1C;
+    background-color: #FFFFFF;
+  }
+
+  /* Thin-line Heritage Framing */
+  .heritage-hairline-box {
+    position: relative;
+    border: 1px solid #EBE5DC;
+    background-color: #FFFFFF;
+  }
+
+  .heritage-hairline-box::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 1px solid rgba(197, 160, 89, 0.3);
+    pointer-events: none;
+  }
+
+  /* Angular Diagonal Split Banner Panels */
+  .panel-diagonal-1 {
+    clip-path: polygon(0 0, 36% 0, 30% 100%, 0 100%);
+  }
+  .panel-diagonal-2 {
+    clip-path: polygon(36% 0, 71% 0, 65% 100%, 30% 100%);
+  }
+  .panel-diagonal-3 {
+    clip-path: polygon(71% 0, 100% 0, 100% 100%, 65% 100%);
+  }
+
+  @media (min-width: 768px) {
+    .panel-diagonal-1 {
+      clip-path: polygon(0 0, 38% 0, 28% 100%, 0 100%);
+    }
+    .panel-diagonal-2 {
+      clip-path: polygon(38% 0, 72% 0, 62% 100%, 28% 100%);
+    }
+    .panel-diagonal-3 {
+      clip-path: polygon(72% 0, 100% 0, 100% 100%, 62% 100%);
+    }
+  }
+
+  /* WhatsApp Floating Button Tooltip */
+  .whatsapp-pulse {
+    box-shadow: 0 4px 14px rgba(37, 211, 102, 0.35);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+
+  .whatsapp-pulse:hover {
+    transform: scale(1.06) translateY(-2px);
+    box-shadow: 0 6px 20px rgba(37, 211, 102, 0.5);
+  }
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #FAF8F5;
+}
+::-webkit-scrollbar-thumb {
+  background: #DFCCA3;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C5A059;
+}

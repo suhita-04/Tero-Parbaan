@@ -1,0 +1,19 @@
+# Root dependencies
+node_modules/
+
+# Frontend build output
+frontend/dist/
+frontend/node_modules/
+
+# Python
+backend/__pycache__/
+backend/.venv/
+*.pyc
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
