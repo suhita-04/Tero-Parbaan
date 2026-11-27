@@ -4,7 +4,15 @@ import { MOCK_PRODUCTS } from '../data/mockProducts';
 import { useCart } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
 import ProductMedia from '../components/product/ProductMedia';
-import { normalizeApiProduct, isVideoMedia, hasDiscount, getEffectivePrice, isOutOfStock } from '../utils/products';
+import {
+  normalizeApiProduct,
+  isVideoMedia,
+  hasDiscount,
+  getEffectivePrice,
+  isOutOfStock,
+  translateCategoryLabel,
+  translateSubcategoryLabel,
+} from '../utils/products';
 
 const BLOUSE_KURTI_SIZES = ['34', '36', '38', '40', '42'];
 
@@ -55,12 +63,14 @@ export default function ProductDetail() {
   const isSaree = categoryLower === 'saree';
   const isStole = categoryLower === 'stole';
 
-  // State for conditional sizing
+  // State for conditional sizing & gallery viewer
   const [selectedSize, setSelectedSize] = useState(isBlouseOrKurti ? '38' : 'Free Size');
   const [addedAnimation, setAddedAnimation] = useState(false);
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
 
   useEffect(() => {
     setSelectedSize(isBlouseOrKurti ? '38' : 'Free Size');
+    setActiveMediaIndex(0);
   }, [isBlouseOrKurti, product.id]);
 
   if (loadingDb) {
@@ -92,8 +102,18 @@ export default function ProductDetail() {
   const effectivePrice = getEffectivePrice(product);
   const outOfStock = isOutOfStock(product);
 
-  const categoryLabel = t(`cat_${categoryLower}`);
-  const subcategoryLabel = product.subcategory ? t(`sub_${product.subcategory.toLowerCase()}`) : null;
+  const mediaItems =
+    Array.isArray(product.mediaItems) && product.mediaItems.length > 0
+      ? product.mediaItems
+      : product.image
+        ? [{ url: product.image, media_type: product.mediaType || product.media_type || 'image' }]
+        : [];
+  const activeMedia = mediaItems[activeMediaIndex] || mediaItems[0] || product;
+
+  const categoryLabel = translateCategoryLabel(t, product.category);
+  const subcategoryLabel = product.subcategory
+    ? translateSubcategoryLabel(t, product.subcategory)
+    : null;
 
   const handleAddToCart = () => {
     if (outOfStock) return;
@@ -127,7 +147,7 @@ export default function ProductDetail() {
             <>
               <span className="text-brand-border-gold">&bull;</span>
               <Link
-                to={`/shop?category=sarees&sub=${product.subcategory.toLowerCase()}`}
+                to={`/shop?category=${encodeURIComponent(product.category.toLowerCase())}&sub=${encodeURIComponent(product.subcategory.toLowerCase())}`}
                 className="hover:text-brand-black transition-colors"
               >
                 {subcategoryLabel}
@@ -141,30 +161,65 @@ export default function ProductDetail() {
         {/* Product Layout Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-start">
           
-          {/* Large 3:4 Product Media Column */}
-          <div className="lg:col-span-7 bg-white border border-brand-border p-3 sm:p-5 shadow-gold-subtle relative">
-            <div className="aspect-[3/4] relative overflow-hidden bg-brand-canvas group">
-              <ProductMedia
-                item={product}
-                controls={isVideoMedia(product)}
-                alt={getBilingualTitle()}
-                className={`w-full h-full object-cover object-center ${
-                  isVideoMedia(product)
-                    ? ''
-                    : 'transition-transform duration-700 ease-out group-hover:scale-[1.02]'
-                }`}
-              />
-              {localizedTag && (
-                <span className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm text-[10px] uppercase tracking-widest text-brand-crimson px-3 py-1 font-sans border border-brand-border-gold pointer-events-none">
-                  {localizedTag}
-                </span>
-              )}
-              {outOfStock && (
-                <span className="absolute top-4 right-4 bg-brand-black text-white text-[10px] uppercase tracking-widest px-3 py-1 font-sans font-semibold pointer-events-none">
-                  {language === 'bn' ? 'স্টক শেষ' : 'Out of Stock'}
-                </span>
-              )}
+          {/* Large 3:4 Product Media Column + Thumbnail Gallery */}
+          <div className="lg:col-span-7 space-y-3">
+            <div className="bg-white border border-brand-border p-3 sm:p-5 shadow-gold-subtle relative">
+              <div className="aspect-[3/4] relative overflow-hidden bg-brand-canvas group">
+                <ProductMedia
+                  item={activeMedia}
+                  controls={isVideoMedia(activeMedia)}
+                  alt={getBilingualTitle()}
+                  className={`w-full h-full object-cover object-center ${
+                    isVideoMedia(activeMedia)
+                      ? ''
+                      : 'transition-transform duration-700 ease-out group-hover:scale-[1.02]'
+                  }`}
+                />
+                {localizedTag && (
+                  <span className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm text-[10px] uppercase tracking-widest text-brand-crimson px-3 py-1 font-sans border border-brand-border-gold pointer-events-none">
+                    {localizedTag}
+                  </span>
+                )}
+                {outOfStock && (
+                  <span className="absolute top-4 right-4 bg-brand-black text-white text-[10px] uppercase tracking-widest px-3 py-1 font-sans font-semibold pointer-events-none">
+                    {language === 'bn' ? 'স্টক শেষ' : 'Out of Stock'}
+                  </span>
+                )}
+              </div>
             </div>
+
+            {mediaItems.length > 1 && (
+              <div className="flex items-center gap-2.5 overflow-x-auto pb-1 no-scrollbar">
+                {mediaItems.map((media, idx) => {
+                  const isActive = idx === activeMediaIndex;
+                  const isVid = isVideoMedia(media);
+                  return (
+                    <button
+                      key={`${media.url}-${idx}`}
+                      type="button"
+                      onClick={() => setActiveMediaIndex(idx)}
+                      aria-label={`View media ${idx + 1}`}
+                      className={`relative w-16 h-20 sm:w-20 sm:h-24 flex-shrink-0 overflow-hidden bg-white border transition-all ${
+                        isActive
+                          ? 'border-brand-crimson ring-1 ring-brand-crimson opacity-100'
+                          : 'border-brand-border opacity-70 hover:opacity-100 hover:border-brand-gold'
+                      }`}
+                    >
+                      <ProductMedia
+                        item={media}
+                        alt={`${getBilingualTitle()} ${idx + 1}`}
+                        className="w-full h-full object-cover object-center"
+                      />
+                      {isVid && (
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/25 text-white text-xs pointer-events-none">
+                          ▶
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Product Details & Purchase Actions Column */}

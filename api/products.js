@@ -1,16 +1,38 @@
-import { getDb, ensureTables } from './_db.js';
+import { getDb, ensureTables, verifyAdmin } from './_db.js';
 
-function verifyAdmin(req) {
-  const auth = req.headers['authorization'] || '';
-  const token = auth.replace('Bearer ', '').trim();
-  if (!token) return false;
-  try {
-    const decoded = Buffer.from(token, 'base64').toString('utf-8');
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'parbon2026';
-    return decoded.startsWith('parbondesk:') && decoded.endsWith(`:${ADMIN_PASSWORD}`);
-  } catch {
-    return false;
+function normalizeMediaPayload(mediaItems, mediaUrls, imageUrl, mediaType) {
+  const sourceArray = Array.isArray(mediaItems)
+    ? mediaItems
+    : Array.isArray(mediaUrls)
+      ? mediaUrls
+      : null;
+
+  let normalizedItems = [];
+  if (sourceArray) {
+    normalizedItems = sourceArray
+      .filter((item) => item && String(item.url || '').trim())
+      .map((item) => ({
+        url: String(item.url).trim(),
+        media_type: item.media_type === 'video' ? 'video' : 'image',
+      }));
+  } else if (imageUrl && String(imageUrl).trim()) {
+    normalizedItems = [
+      {
+        url: String(imageUrl).trim(),
+        media_type: mediaType === 'video' ? 'video' : 'image',
+      },
+    ];
   }
+
+  const primaryUrl = normalizedItems[0]?.url || (imageUrl ? String(imageUrl).trim() : '') || '';
+  const primaryType =
+    normalizedItems[0]?.media_type || (mediaType === 'video' ? 'video' : 'image');
+
+  return {
+    mediaUrls: normalizedItems,
+    imageUrl: primaryUrl || null,
+    mediaType: primaryType,
+  };
 }
 
 export default async function handler(req, res) {
@@ -37,19 +59,38 @@ export default async function handler(req, res) {
 
     // POST — create new product
     if (req.method === 'POST') {
-      const { title_en, title_bn, category, subcategory, price, discount_price, fabric, description, image_url, media_type, in_stock } = req.body || {};
+      const {
+        title_en,
+        title_bn,
+        category,
+        subcategory,
+        price,
+        discount_price,
+        fabric,
+        description,
+        image_url,
+        media_type,
+        media_items,
+        media_urls,
+        in_stock,
+      } = req.body || {};
       if (!title_en || !category || !price) {
         return res.status(400).json({ ok: false, error: 'title_en, category, and price are required' });
       }
-      const normalizedMediaType = media_type === 'video' ? 'video' : 'image';
+      const { mediaUrls, imageUrl, mediaType } = normalizeMediaPayload(
+        media_items,
+        media_urls,
+        image_url,
+        media_type
+      );
       const normalizedDiscountPrice =
         discount_price !== undefined && discount_price !== null && discount_price !== '' && Number(discount_price) > 0
           ? Number(discount_price)
           : null;
       const [product] = await sql`
-        INSERT INTO products (title_en, title_bn, category, subcategory, price, discount_price, fabric, description, image_url, media_type, in_stock)
+        INSERT INTO products (title_en, title_bn, category, subcategory, price, discount_price, fabric, description, image_url, media_type, media_urls, in_stock)
         VALUES (${title_en}, ${title_bn || null}, ${category}, ${subcategory || null}, ${Number(price)}, ${normalizedDiscountPrice},
-                ${fabric || null}, ${description || null}, ${image_url || null}, ${normalizedMediaType}, ${in_stock !== false})
+                ${fabric || null}, ${description || null}, ${imageUrl}, ${mediaType}, ${JSON.stringify(mediaUrls)}::jsonb, ${in_stock !== false})
         RETURNING *
       `;
       return res.status(201).json({ ok: true, product });
@@ -57,9 +98,29 @@ export default async function handler(req, res) {
 
     // PUT — update product
     if (req.method === 'PUT') {
-      const { id, title_en, title_bn, category, subcategory, price, discount_price, fabric, description, image_url, media_type, in_stock } = req.body || {};
+      const {
+        id,
+        title_en,
+        title_bn,
+        category,
+        subcategory,
+        price,
+        discount_price,
+        fabric,
+        description,
+        image_url,
+        media_type,
+        media_items,
+        media_urls,
+        in_stock,
+      } = req.body || {};
       if (!id) return res.status(400).json({ ok: false, error: 'id is required' });
-      const normalizedMediaType = media_type === 'video' ? 'video' : 'image';
+      const { mediaUrls, imageUrl, mediaType } = normalizeMediaPayload(
+        media_items,
+        media_urls,
+        image_url,
+        media_type
+      );
       const normalizedDiscountPrice =
         discount_price !== undefined && discount_price !== null && discount_price !== '' && Number(discount_price) > 0
           ? Number(discount_price)
@@ -74,8 +135,9 @@ export default async function handler(req, res) {
           discount_price = ${normalizedDiscountPrice},
           fabric = ${fabric || null},
           description = ${description || null},
-          image_url = ${image_url || null},
-          media_type = ${normalizedMediaType},
+          image_url = ${imageUrl},
+          media_type = ${mediaType},
+          media_urls = ${JSON.stringify(mediaUrls)}::jsonb,
           in_stock = ${in_stock !== false}
         WHERE id = ${Number(id)}
         RETURNING *

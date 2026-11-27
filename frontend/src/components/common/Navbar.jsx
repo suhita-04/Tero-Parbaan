@@ -4,6 +4,10 @@ import { useCart } from '../../context/CartContext';
 import { useLanguage, toBengaliNumerals } from '../../context/LanguageContext';
 import { useStoreSettings } from '../../context/StoreSettingsContext';
 import CustomerAuthModal from '../auth/CustomerAuthModal';
+import { translateSubcategoryLabel } from '../../utils/products';
+
+const BUILTIN_CATEGORIES = new Set(['saree', 'blouse', 'kurti', 'stole']);
+const DEFAULT_SAREE_SUBS = ['Shuti', 'Handloom', 'Muslin', 'Silk'];
 
 export default function Navbar() {
   const { totalCount, totalPrice, openCart } = useCart();
@@ -19,8 +23,37 @@ export default function Navbar() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [customerUser, setCustomerUser] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [extraCategories, setExtraCategories] = useState([]);
+  const [sareeSubcategories, setSareeSubcategories] = useState(DEFAULT_SAREE_SUBS);
 
   const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    fetch('/api/categories')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.ok) return;
+        if (Array.isArray(data.categories)) {
+          setExtraCategories(
+            data.categories.filter((c) => !BUILTIN_CATEGORIES.has(String(c).toLowerCase()))
+          );
+        }
+        const apiSareeSubs = data.subcategoriesByParent?.Saree || [];
+        if (apiSareeSubs.length > 0) {
+          const seen = new Set();
+          const merged = [];
+          for (const s of [...DEFAULT_SAREE_SUBS, ...apiSareeSubs]) {
+            const k = String(s).toLowerCase();
+            if (!seen.has(k)) {
+              seen.add(k);
+              merged.push(s);
+            }
+          }
+          setSareeSubcategories(merged);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -229,36 +262,18 @@ export default function Navbar() {
                       <span className="text-[10px] text-brand-stone group-hover:text-brand-crimson font-sans font-normal">&rarr; {t('sub_all')}</span>
                     </Link>
 
-                    {/* Saree Subcategories (Shuti, Handloom, Muslin, Silk) */}
+                    {/* Saree Subcategories (Shuti, Handloom, Muslin, Silk + Dynamic) */}
                     <div className="pl-3 pr-1 pt-1 space-y-0.5 border-l-2 border-[#C5A059]/40 ml-2 mt-1">
-                      <Link
-                        to="/shop?category=sarees&sub=shuti"
-                        onClick={() => setIsCategoryDropdownOpen(false)}
-                        className="block px-3 py-1.5 text-xs text-brand-stone hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors"
-                      >
-                        • {t('sub_shuti')}
-                      </Link>
-                      <Link
-                        to="/shop?category=sarees&sub=handloom"
-                        onClick={() => setIsCategoryDropdownOpen(false)}
-                        className="block px-3 py-1.5 text-xs text-brand-stone hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors"
-                      >
-                        • {t('sub_handloom')}
-                      </Link>
-                      <Link
-                        to="/shop?category=sarees&sub=muslin"
-                        onClick={() => setIsCategoryDropdownOpen(false)}
-                        className="block px-3 py-1.5 text-xs text-brand-stone hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors"
-                      >
-                        • {t('sub_muslin')}
-                      </Link>
-                      <Link
-                        to="/shop?category=sarees&sub=silk"
-                        onClick={() => setIsCategoryDropdownOpen(false)}
-                        className="block px-3 py-1.5 text-xs text-brand-stone hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors"
-                      >
-                        • {t('sub_silk')}
-                      </Link>
+                      {sareeSubcategories.map((sub) => (
+                        <Link
+                          key={sub}
+                          to={`/shop?category=sarees&sub=${encodeURIComponent(sub.toLowerCase())}`}
+                          onClick={() => setIsCategoryDropdownOpen(false)}
+                          className="block px-3 py-1.5 text-xs text-brand-stone hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors"
+                        >
+                          • {translateSubcategoryLabel(t, sub)}
+                        </Link>
+                      ))}
                     </div>
                   </div>
 
@@ -294,6 +309,19 @@ export default function Navbar() {
                       {t('cat_stoles')}
                     </Link>
                   </div>
+
+                  {/* Dynamic Custom Categories */}
+                  {extraCategories.map((cat) => (
+                    <div key={cat} className="py-0.5">
+                      <Link
+                        to={`/shop?category=${encodeURIComponent(cat.toLowerCase())}`}
+                        onClick={() => setIsCategoryDropdownOpen(false)}
+                        className="block px-3 py-2 text-xs uppercase tracking-wider text-brand-black hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors font-medium"
+                      >
+                        {cat}
+                      </Link>
+                    </div>
+                  ))}
 
                   {/* All Collections Link */}
                   <div className="pt-2 mt-1 border-t border-brand-border/60">
@@ -549,34 +577,16 @@ export default function Navbar() {
                     >
                       • {t('sub_all')}
                     </Link>
-                    <Link
-                      to="/shop?category=sarees&sub=shuti"
-                      onClick={closeMobileMenu}
-                      className="block py-0.5 hover:text-brand-crimson"
-                    >
-                      • {t('sub_shuti')}
-                    </Link>
-                    <Link
-                      to="/shop?category=sarees&sub=handloom"
-                      onClick={closeMobileMenu}
-                      className="block py-0.5 hover:text-brand-crimson"
-                    >
-                      • {t('sub_handloom')}
-                    </Link>
-                    <Link
-                      to="/shop?category=sarees&sub=muslin"
-                      onClick={closeMobileMenu}
-                      className="block py-0.5 hover:text-brand-crimson"
-                    >
-                      • {t('sub_muslin')}
-                    </Link>
-                    <Link
-                      to="/shop?category=sarees&sub=silk"
-                      onClick={closeMobileMenu}
-                      className="block py-0.5 hover:text-brand-crimson"
-                    >
-                      • {t('sub_silk')}
-                    </Link>
+                    {sareeSubcategories.map((sub) => (
+                      <Link
+                        key={sub}
+                        to={`/shop?category=sarees&sub=${encodeURIComponent(sub.toLowerCase())}`}
+                        onClick={closeMobileMenu}
+                        className="block py-0.5 hover:text-brand-crimson"
+                      >
+                        • {translateSubcategoryLabel(t, sub)}
+                      </Link>
+                    ))}
                   </div>
 
                   <Link
@@ -600,6 +610,16 @@ export default function Navbar() {
                   >
                     {t('cat_stoles')}
                   </Link>
+                  {extraCategories.map((cat) => (
+                    <Link
+                      key={cat}
+                      to={`/shop?category=${encodeURIComponent(cat.toLowerCase())}`}
+                      onClick={closeMobileMenu}
+                      className="block py-1 font-medium text-brand-black hover:text-brand-crimson"
+                    >
+                      {cat}
+                    </Link>
+                  ))}
                   <Link
                     to="/shop"
                     onClick={closeMobileMenu}

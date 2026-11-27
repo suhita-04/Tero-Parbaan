@@ -13,6 +13,19 @@ export function getDb() {
   return _sql;
 }
 
+export function verifyAdmin(req) {
+  const auth = req.headers['authorization'] || '';
+  const token = auth.replace('Bearer ', '').trim();
+  if (!token) return false;
+  try {
+    const decoded = Buffer.from(token, 'base64').toString('utf-8');
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'parbon2026';
+    return decoded.startsWith('parbondesk:') && decoded.endsWith(`:${ADMIN_PASSWORD}`);
+  } catch {
+    return false;
+  }
+}
+
 export async function ensureTables() {
   if (_tablesReady) return;
 
@@ -31,6 +44,7 @@ export async function ensureTables() {
       description    TEXT,
       image_url      TEXT,
       media_type     TEXT DEFAULT 'image',
+      media_urls     JSONB DEFAULT '[]'::jsonb,
       in_stock       BOOLEAN DEFAULT TRUE,
       created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -44,6 +58,21 @@ export async function ensureTables() {
   await sql`
     ALTER TABLE products
     ADD COLUMN IF NOT EXISTS discount_price INTEGER
+  `;
+
+  await sql`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS media_urls JSONB DEFAULT '[]'::jsonb
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS categories (
+      id              SERIAL PRIMARY KEY,
+      type            TEXT NOT NULL,
+      name            TEXT NOT NULL,
+      parent_category TEXT DEFAULT '',
+      UNIQUE(type, name, parent_category)
+    )
   `;
 
   await sql`

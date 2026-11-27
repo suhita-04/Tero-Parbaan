@@ -1,16 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import ProductGrid from '../components/product/ProductGrid';
 import { MOCK_PRODUCTS } from '../data/mockProducts';
 import { useLanguage, toBengaliNumerals } from '../context/LanguageContext';
-import { normalizeApiProduct } from '../utils/products';
+import {
+  normalizeApiProduct,
+  translateCategoryLabel,
+  translateSubcategoryLabel,
+} from '../utils/products';
+
+const DEFAULT_CATEGORIES = ['Saree', 'Blouse', 'Kurti', 'Stole'];
+const DEFAULT_SAREE_SUBS = ['Shuti', 'Handloom', 'Muslin', 'Silk'];
 
 export default function Shop() {
   const [searchParams] = useSearchParams();
   const { t, language } = useLanguage();
 
-  // API products state — fallback to mock if DB is empty or unreachable
+  // API products & categories state — fallback to mock/defaults if DB is empty or unreachable
   const [apiProducts, setApiProducts] = useState(null); // null = not yet fetched
+  const [dynamicCategories, setDynamicCategories] = useState(DEFAULT_CATEGORIES);
+  const [subcategoriesByParent, setSubcategoriesByParent] = useState({
+    Saree: DEFAULT_SAREE_SUBS,
+  });
 
   useEffect(() => {
     fetch('/api/products')
@@ -23,6 +34,18 @@ export default function Shop() {
         }
       })
       .catch(() => setApiProducts([])); // network error → fall back to mock
+
+    fetch('/api/categories')
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && Array.isArray(data.categories) && data.categories.length > 0) {
+          setDynamicCategories(data.categories);
+        }
+        if (data.ok && data.subcategoriesByParent && typeof data.subcategoriesByParent === 'object') {
+          setSubcategoriesByParent(data.subcategoriesByParent);
+        }
+      })
+      .catch(() => {}); // fall back gracefully to default categories
   }, []);
 
   // Source: DB products if available, otherwise mock catalog
@@ -34,14 +57,32 @@ export default function Shop() {
   const rawSub = searchParams.get('sub') || 'all';
   const searchQuery = searchParams.get('search') || '';
 
-  // Normalize category parameter for matching
+  // Merge API categories with any distinct categories present on active products
+  const allCategories = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    for (const c of [...dynamicCategories, ...SOURCE_PRODUCTS.map(p => p.category)]) {
+      const clean = String(c || '').trim();
+      if (!clean) continue;
+      const key = clean.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        list.push(clean);
+      }
+    }
+    return list;
+  }, [dynamicCategories, SOURCE_PRODUCTS]);
+
+  // Normalize category parameter for matching (supports built-in plurals + custom categories)
   const getNormalizedCategory = (cat) => {
-    const c = cat.toLowerCase();
+    const c = String(cat || '').trim().toLowerCase();
+    if (!c || c === 'all') return 'all';
     if (c === 'saree' || c === 'sarees') return 'Saree';
     if (c === 'blouse' || c === 'blouses') return 'Blouse';
     if (c === 'kurti' || c === 'kurtis') return 'Kurti';
     if (c === 'stole' || c === 'stoles') return 'Stole';
-    return 'all';
+    const matched = allCategories.find((item) => item.toLowerCase() === c);
+    return matched || cat;
   };
 
   const selectedCategory = getNormalizedCategory(rawCategory);
@@ -49,31 +90,47 @@ export default function Shop() {
 
   // Primary category configuration
   const MAIN_CATEGORIES = [
-    { labelKey: 'cat_all', value: 'all' },
-    { labelKey: 'cat_sarees', value: 'Saree' },
-    { labelKey: 'cat_blouses', value: 'Blouse' },
-    { labelKey: 'cat_kurtis', value: 'Kurti' },
-    { labelKey: 'cat_stoles', value: 'Stole' },
+    { label: t('cat_all'), value: 'all' },
+    ...allCategories.map((cat) => ({
+      label: translateCategoryLabel(t, cat),
+      value: cat,
+    })),
   ];
 
-  // Saree nested subcategory configuration
-  const SAREE_SUBCATEGORIES = [
-    { labelKey: 'sub_all', value: 'all' },
-    { labelKey: 'sub_shuti', value: 'Shuti' },
-    { labelKey: 'sub_handloom', value: 'Handloom' },
-    { labelKey: 'sub_muslin', value: 'Muslin' },
-    { labelKey: 'sub_silk', value: 'Silk' },
-  ];
+  // Subcategories for the currently selected category
+  const activeSubcategories = useMemo(() => {
+    if (selectedCategory === 'all') return [];
+    const matchedParentKey = Object.keys(subcategoriesByParent).find(
+      (k) => k.toLowerCase() === selectedCategory.toLowerCase()
+    );
+    const fromApi = matchedParentKey ? subcategoriesByParent[matchedParentKey] : [];
+    const fromProducts = SOURCE_PRODUCTS
+      .filter((p) => p.category?.toLowerCase() === selectedCategory.toLowerCase() && p.subcategory)
+      .map((p) => p.subcategory);
+
+    const seen = new Set();
+    const combined = [];
+    for (const sub of [...(selectedCategory === 'Saree' ? DEFAULT_SAREE_SUBS : []), ...fromApi, ...fromProducts]) {
+      const clean = String(sub || '').trim();
+      if (!clean) continue;
+      const key = clean.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        combined.push(clean);
+      }
+    }
+    return combined;
+  }, [selectedCategory, subcategoriesByParent, SOURCE_PRODUCTS]);
 
   // Filter products based on category, subcategory, and optional search query
   const filteredProducts = SOURCE_PRODUCTS.filter((product) => {
     // 1. Category Filter
     if (selectedCategory !== 'all') {
-      const matchesCategory = product.category.toLowerCase() === selectedCategory.toLowerCase();
+      const matchesCategory = product.category?.toLowerCase() === selectedCategory.toLowerCase();
       if (!matchesCategory) return false;
 
-      // 2. Saree Subcategory Filter
-      if (selectedCategory === 'Saree' && selectedSub !== 'all') {
+      // 2. Subcategory Filter
+      if (selectedSub !== 'all') {
         if (product.subcategory?.toLowerCase() !== selectedSub) return false;
       }
     }
@@ -108,17 +165,14 @@ export default function Shop() {
       return language === 'bn' ? `অনুসন্ধান: "${searchQuery}"` : `Search: "${searchQuery}"`;
     }
     if (selectedCategory === 'all') return t('cat_all');
-    if (selectedCategory === 'Saree') {
-      if (selectedSub !== 'all') {
-        const subLabel = t(`sub_${selectedSub}`) || selectedSub;
-        return language === 'bn' ? `${subLabel} শাড়ি` : `${rawSub} Sarees`;
-      }
-      return t('cat_sarees');
+    if (selectedSub !== 'all') {
+      const subLabel = translateSubcategoryLabel(t, rawSub);
+      const catLabel = translateCategoryLabel(t, selectedCategory);
+      return selectedCategory === 'Saree' && language === 'bn'
+        ? `${subLabel} শাড়ি`
+        : `${subLabel} ${catLabel}`;
     }
-    if (selectedCategory === 'Blouse') return t('cat_blouses');
-    if (selectedCategory === 'Kurti') return t('cat_kurtis');
-    if (selectedCategory === 'Stole') return t('cat_stoles');
-    return t('cat_all');
+    return translateCategoryLabel(t, selectedCategory);
   };
 
   const countDisplay = language === 'bn' ? toBengaliNumerals(filteredProducts.length) : filteredProducts.length;
@@ -144,8 +198,8 @@ export default function Shop() {
         {/* 1. Sleek, Minimalist Primary Category Filter Tabs */}
         <div className="flex justify-start sm:justify-center items-center space-x-6 sm:space-x-10 mb-6 border-b border-brand-border pb-3 overflow-x-auto no-scrollbar">
           {MAIN_CATEGORIES.map((cat) => {
-            const isActive = selectedCategory === cat.value;
-            const targetUrl = cat.value === 'all' ? '/shop' : `/shop?category=${cat.value.toLowerCase()}`;
+            const isActive = selectedCategory.toLowerCase() === cat.value.toLowerCase();
+            const targetUrl = cat.value === 'all' ? '/shop' : `/shop?category=${encodeURIComponent(cat.value.toLowerCase())}`;
             return (
               <Link
                 key={cat.value}
@@ -156,24 +210,34 @@ export default function Shop() {
                     : 'text-brand-stone hover:text-brand-black hover:border-brand-gold border-transparent'
                 }`}
               >
-                {t(cat.labelKey)}
+                {cat.label}
               </Link>
             );
           })}
         </div>
 
-        {/* 2. Saree Nested Subcategory Pills (Visible when Saree is selected) */}
-        {selectedCategory === 'Saree' && (
+        {/* 2. Nested Subcategory Pills (Visible whenever active category has subcategories) */}
+        {activeSubcategories.length > 0 && (
           <div className="flex justify-start sm:justify-center items-center space-x-2 sm:space-x-3 mb-10 overflow-x-auto pb-2 no-scrollbar">
             <span className="text-[10px] uppercase tracking-wider text-brand-stone font-sans mr-1 hidden sm:inline-block">
               {t('sub_weave_type')}
             </span>
-            {SAREE_SUBCATEGORIES.map((sub) => {
-              const isActive = (selectedSub === 'all' && sub.value === 'all') || selectedSub === sub.value.toLowerCase();
-              const subTargetUrl = sub.value === 'all' ? '/shop?category=sarees' : `/shop?category=sarees&sub=${sub.value.toLowerCase()}`;
+            <Link
+              to={`/shop?category=${encodeURIComponent(selectedCategory.toLowerCase())}`}
+              className={`text-[10px] sm:text-[11px] uppercase tracking-wider px-3.5 py-1.5 rounded-sm transition-all whitespace-nowrap border ${
+                selectedSub === 'all'
+                  ? 'bg-brand-crimson text-white border-brand-crimson font-medium shadow-sm'
+                  : 'bg-white text-brand-stone hover:text-brand-black border-brand-border hover:border-brand-gold'
+              }`}
+            >
+              {selectedCategory === 'Saree' ? t('sub_all') : t('cat_all')}
+            </Link>
+            {activeSubcategories.map((sub) => {
+              const isActive = selectedSub === sub.toLowerCase();
+              const subTargetUrl = `/shop?category=${encodeURIComponent(selectedCategory.toLowerCase())}&sub=${encodeURIComponent(sub.toLowerCase())}`;
               return (
                 <Link
-                  key={sub.value}
+                  key={sub}
                   to={subTargetUrl}
                   className={`text-[10px] sm:text-[11px] uppercase tracking-wider px-3.5 py-1.5 rounded-sm transition-all whitespace-nowrap border ${
                     isActive
@@ -181,7 +245,7 @@ export default function Shop() {
                       : 'bg-white text-brand-stone hover:text-brand-black border-brand-border hover:border-brand-gold'
                   }`}
                 >
-                  {t(sub.labelKey)}
+                  {translateSubcategoryLabel(t, sub)}
                 </Link>
               );
             })}

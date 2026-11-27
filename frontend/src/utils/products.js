@@ -1,4 +1,30 @@
 /**
+ * Extract normalized [{ url, media_type }] array from a DB product row.
+ */
+export function extractProductMediaItems(p) {
+  if (Array.isArray(p?.media_urls) && p.media_urls.length > 0) {
+    const valid = p.media_urls
+      .filter((item) => item && String(item.url || '').trim())
+      .map((item) => ({
+        url: String(item.url).trim(),
+        media_type: item.media_type === 'video' ? 'video' : 'image',
+      }));
+    if (valid.length > 0) return valid;
+  }
+
+  if (p?.image_url) {
+    return [
+      {
+        url: p.image_url,
+        media_type: p.media_type === 'video' ? 'video' : 'image',
+      },
+    ];
+  }
+
+  return [];
+}
+
+/**
  * Normalize a Neon DB product row into the shape expected by storefront components.
  */
 export function normalizeApiProduct(p) {
@@ -6,6 +32,12 @@ export function normalizeApiProduct(p) {
     p.discount_price !== undefined && p.discount_price !== null && Number(p.discount_price) > 0
       ? Number(p.discount_price)
       : null;
+
+  const mediaItems = extractProductMediaItems(p);
+  const primaryMedia = mediaItems[0] || {
+    url: p.image_url || '',
+    media_type: p.media_type === 'video' ? 'video' : 'image',
+  };
 
   return {
     id: `db-${p.id}`,
@@ -18,9 +50,10 @@ export function normalizeApiProduct(p) {
     discountPrice,
     fabric: { en: p.fabric || '', bn: p.fabric || '' },
     description: { en: p.description || '', bn: p.description || '' },
-    image: p.image_url || '',
-    media_type: p.media_type === 'video' ? 'video' : 'image',
-    mediaType: p.media_type === 'video' ? 'video' : 'image',
+    image: primaryMedia.url || '',
+    media_type: primaryMedia.media_type,
+    mediaType: primaryMedia.media_type,
+    mediaItems,
     in_stock: p.in_stock !== false,
     inStock: p.in_stock !== false,
     isFromDb: true,
@@ -57,4 +90,24 @@ export function getEffectivePrice(product) {
  */
 export function isOutOfStock(product) {
   return product?.inStock === false || product?.in_stock === false;
+}
+
+/**
+ * Translate built-in categories while preserving custom category names verbatim.
+ */
+export function translateCategoryLabel(t, category) {
+  if (!category) return '';
+  const key = `cat_${String(category).trim().toLowerCase()}`;
+  const translated = t(key);
+  return translated === key ? category : translated;
+}
+
+/**
+ * Translate built-in subcategories while preserving custom subcategory names verbatim.
+ */
+export function translateSubcategoryLabel(t, subcategory) {
+  if (!subcategory) return '';
+  const key = `sub_${String(subcategory).trim().toLowerCase()}`;
+  const translated = t(key);
+  return translated === key ? subcategory : translated;
 }

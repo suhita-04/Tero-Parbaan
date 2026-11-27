@@ -3,6 +3,10 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { useStoreSettings } from '../../context/StoreSettingsContext';
 import ProductMedia from '../../components/product/ProductMedia';
+import { extractProductMediaItems } from '../../utils/products';
+
+const DEFAULT_CATEGORIES = ['Saree', 'Blouse', 'Kurti', 'Stole'];
+const DEFAULT_SAREE_SUBS = ['Shuti', 'Handloom', 'Muslin', 'Silk'];
 
 const ORDER_STAGES = ['Pending', 'Confirmed', 'Shipped', 'Delivered'];
 const ALL_ORDER_STATUSES = ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Rejected'];
@@ -236,13 +240,18 @@ function uploadToCloudinary(file, onProgress) {
 }
 
 // ─── Product Form ─────────────────────────────────────────────────────────────
-function ProductForm({ initial, onSave, onCancel }) {
-  const CATEGORIES = ['Saree', 'Blouse', 'Kurti', 'Stole'];
-  const SAREE_SUBS = ['Shuti', 'Handloom', 'Muslin', 'Silk'];
+function ProductForm({
+  initial,
+  categories = DEFAULT_CATEGORIES,
+  subcategoriesByParent = { Saree: DEFAULT_SAREE_SUBS },
+  onAddCategory,
+  onSave,
+  onCancel,
+}) {
   const fileInputRef = useRef(null);
 
   const empty = {
-    id: null, title_en: '', title_bn: '', category: 'Saree',
+    id: null, title_en: '', title_bn: '', category: categories[0] || 'Saree',
     subcategory: '', price: '', discount_price: '', fabric: '', description: '',
     image_url: '', media_type: 'image', in_stock: true,
   };
@@ -257,40 +266,151 @@ function ProductForm({ initial, onSave, onCancel }) {
         }
       : empty
   );
+  const [mediaItems, setMediaItems] = useState(() => extractProductMediaItems(initial));
+  const [activeUploads, setActiveUploads] = useState([]);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [err, setErr] = useState('');
 
+  // Dynamic inline category / subcategory creation states
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [savingCategory, setSavingCategory] = useState(false);
+
+  const [addingSubcategory, setAddingSubcategory] = useState(false);
+  const [newSubcategoryName, setNewSubcategoryName] = useState('');
+  const [savingSubcategory, setSavingSubcategory] = useState(false);
+
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const handleFileUpload = async (file) => {
-    if (!file) return;
-    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
-      setErr('Please choose an image or video file.');
-      return;
+  // Build available category options (including initial product's category if not yet listed)
+  const categoryOptions = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    for (const c of [...categories, form.category]) {
+      const clean = String(c || '').trim();
+      if (!clean) continue;
+      const key = clean.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        list.push(clean);
+      }
     }
+    return list;
+  }, [categories, form.category]);
 
-    setErr('');
-    setUploading(true);
-    setUploadProgress(0);
-
-    try {
-      const { secure_url, media_type } = await uploadToCloudinary(file, setUploadProgress);
-      setForm(f => ({ ...f, image_url: secure_url, media_type }));
-    } catch (uploadErr) {
-      setErr(uploadErr.message || 'Media upload failed');
-    } finally {
-      setUploading(false);
+  // Build available subcategory options for the selected category
+  const subcategoryOptions = useMemo(() => {
+    const parentKey = Object.keys(subcategoriesByParent).find(
+      k => k.toLowerCase() === String(form.category || '').toLowerCase()
+    );
+    const parentList = parentKey ? subcategoriesByParent[parentKey] : [];
+    const base = String(form.category || '').toLowerCase() === 'saree' ? DEFAULT_SAREE_SUBS : [];
+    const seen = new Set();
+    const list = [];
+    for (const s of [...base, ...parentList, form.subcategory]) {
+      const clean = String(s || '').trim();
+      if (!clean) continue;
+      const key = clean.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        list.push(clean);
+      }
     }
+    return list;
+  }, [subcategoriesByParent, form.category, form.subcategory]);
+
+  const uploading = activeUploads.length > 0;
+
+  const handleFilesUpload = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (files.length === 0) return;
+
+    const validFiles = files.filter(
+      f => f.type.startsWith('image/') || f.type.startsWith('video/')
+    );
+    if (validFiles.length !== files.length) {
+      setErr('Only image and video files are supported.');
+    } else {
+      setErr('');
+    }
+    if (validFiles.length === 0) return;
+
+    await Promise.all(
+      validFiles.map(async (file, idx) => {
+        const uploadId = `${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 7)}`;
+        setActiveUploads(prev => [...prev, { id: uploadId, name: file.name, progress: 0 }]);
+
+        try {
+          const { secure_url, media_type } = await uploadToCloudinary(file, (pct) => {
+            setActiveUploads(prev =>
+              prev.map(u => (u.id === uploadId ? { ...u, progress: pct } : u))
+            );
+          });
+          setMediaItems(prev => [...prev, { url: secure_url, media_type }]);
+        } catch (uploadErr) {
+          setErr(uploadErr.message || `Failed to upload ${file.name}`);
+        } finally {
+          setActiveUploads(prev => prev.filter(u => u.id !== uploadId));
+        }
+      })
+    );
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer?.files?.[0];
-    if (file) handleFileUpload(file);
+    if (e.dataTransfer?.files?.length) {
+      handleFilesUpload(e.dataTransfer.files);
+    }
+  };
+
+  const removeMediaItem = (indexToRemove) => {
+    setMediaItems(prev => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const handleCreateCategory = async () => {
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) {
+      setErr('Please enter a category name.');
+      return;
+    }
+    setErr('');
+    setSavingCategory(true);
+    try {
+      const createdName = await onAddCategory({ type: 'category', name: trimmed });
+      setForm(f => ({ ...f, category: createdName || trimmed, subcategory: '' }));
+      setNewCategoryName('');
+      setAddingCategory(false);
+    } catch (e) {
+      setErr(e.message || 'Failed to add category');
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const handleCreateSubcategory = async () => {
+    const trimmed = newSubcategoryName.trim();
+    if (!trimmed) {
+      setErr('Please enter a subcategory name.');
+      return;
+    }
+    setErr('');
+    setSavingSubcategory(true);
+    try {
+      const createdName = await onAddCategory({
+        type: 'subcategory',
+        name: trimmed,
+        parent_category: form.category,
+      });
+      set('subcategory', createdName || trimmed);
+      setNewSubcategoryName('');
+      setAddingSubcategory(false);
+    } catch (e) {
+      setErr(e.message || 'Failed to add subcategory');
+    } finally {
+      setSavingSubcategory(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -299,15 +419,18 @@ function ProductForm({ initial, onSave, onCancel }) {
     setErr('');
     setSaving(true);
     try {
-      await onSave(form);
+      await onSave({
+        ...form,
+        media_items: mediaItems,
+        image_url: mediaItems[0]?.url || '',
+        media_type: mediaItems[0]?.media_type || 'image',
+      });
     } catch (error) {
       setErr(error.message || 'Save failed');
     } finally {
       setSaving(false);
     }
   };
-
-  const isSaree = form.category === 'Saree';
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 text-sm font-sans">
@@ -326,22 +449,135 @@ function ProductForm({ initial, onSave, onCancel }) {
         </div>
       </div>
 
-      <div className={`grid grid-cols-1 ${isSaree ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4`}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+        {/* Category Dropdown + Inline Add */}
         <div>
           <label className="label">Category *</label>
-          <select required value={form.category} onChange={e => set('category', e.target.value)} className="inp">
-            {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+          <select
+            required
+            value={addingCategory ? '__add_new__' : form.category}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '__add_new__') {
+                setAddingCategory(true);
+                setNewCategoryName('');
+              } else {
+                setAddingCategory(false);
+                setForm(f => ({ ...f, category: val, subcategory: '' }));
+              }
+            }}
+            className="inp"
+          >
+            {categoryOptions.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+            <option value="__add_new__">+ Add New Category</option>
           </select>
+
+          {addingCategory && (
+            <div className="mt-2 p-2 bg-[#FAF8F5] border border-brand-border space-y-2">
+              <input
+                type="text"
+                autoFocus
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleCreateCategory();
+                  }
+                }}
+                placeholder="Enter new category name..."
+                className="inp bg-white"
+              />
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  disabled={savingCategory}
+                  onClick={handleCreateCategory}
+                  className="flex-1 py-1 bg-brand-crimson hover:bg-brand-crimson-hover disabled:opacity-60 text-white text-[10px] uppercase tracking-wider font-medium transition-colors"
+                >
+                  {savingCategory ? 'Adding...' : 'Add'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddingCategory(false);
+                    setNewCategoryName('');
+                  }}
+                  className="px-2.5 py-1 border border-brand-border bg-white text-brand-stone hover:text-brand-black text-[10px] uppercase tracking-wider transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-        {isSaree && (
-          <div>
-            <label className="label">Subcategory</label>
-            <select value={form.subcategory} onChange={e => set('subcategory', e.target.value)} className="inp">
-              <option value="">— Any —</option>
-              {SAREE_SUBS.map(s => <option key={s}>{s}</option>)}
-            </select>
-          </div>
-        )}
+
+        {/* Subcategory Dropdown + Inline Add */}
+        <div>
+          <label className="label">Subcategory</label>
+          <select
+            value={addingSubcategory ? '__add_new__' : form.subcategory}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '__add_new__') {
+                setAddingSubcategory(true);
+                setNewSubcategoryName('');
+              } else {
+                setAddingSubcategory(false);
+                set('subcategory', val);
+              }
+            }}
+            className="inp"
+          >
+            <option value="">— Any —</option>
+            {subcategoryOptions.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+            <option value="__add_new__">+ Add New Subcategory</option>
+          </select>
+
+          {addingSubcategory && (
+            <div className="mt-2 p-2 bg-[#FAF8F5] border border-brand-border space-y-2">
+              <input
+                type="text"
+                autoFocus
+                value={newSubcategoryName}
+                onChange={(e) => setNewSubcategoryName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleCreateSubcategory();
+                  }
+                }}
+                placeholder="Enter new subcategory name..."
+                className="inp bg-white"
+              />
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  disabled={savingSubcategory}
+                  onClick={handleCreateSubcategory}
+                  className="flex-1 py-1 bg-brand-crimson hover:bg-brand-crimson-hover disabled:opacity-60 text-white text-[10px] uppercase tracking-wider font-medium transition-colors"
+                >
+                  {savingSubcategory ? 'Adding...' : 'Add'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddingSubcategory(false);
+                    setNewSubcategoryName('');
+                  }}
+                  className="px-2.5 py-1 border border-brand-border bg-white text-brand-stone hover:text-brand-black text-[10px] uppercase tracking-wider transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div>
           <label className="label">Price ৳ *</label>
           <input required type="number" min="0" value={form.price} onChange={e => set('price', e.target.value)}
@@ -360,28 +596,30 @@ function ProductForm({ initial, onSave, onCancel }) {
           placeholder="e.g. 100% Muslin Cotton" className="inp" />
       </div>
 
-      {/* Direct Photo / Video Upload via Cloudinary */}
+      {/* Unlimited Multi-Photo / Video Upload via Cloudinary */}
       <div>
-        <label className="label">Product Photo or Video (Upload from Gallery / Computer)</label>
+        <label className="label">
+          Product Photos &amp; Videos ({mediaItems.length} uploaded)
+        </label>
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*,video/*"
+          multiple
           onChange={e => {
-            const file = e.target.files?.[0];
-            if (file) handleFileUpload(file);
+            if (e.target.files?.length) handleFilesUpload(e.target.files);
             e.target.value = '';
           }}
           className="hidden"
         />
 
-        {!form.image_url || uploading ? (
+        {mediaItems.length === 0 && activeUploads.length === 0 ? (
           <div
             role="button"
             tabIndex={0}
-            onClick={() => !uploading && fileInputRef.current?.click()}
+            onClick={() => fileInputRef.current?.click()}
             onKeyDown={e => {
-              if ((e.key === 'Enter' || e.key === ' ') && !uploading) {
+              if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 fileInputRef.current?.click();
               }
@@ -393,77 +631,106 @@ function ProductForm({ initial, onSave, onCancel }) {
               isDragging
                 ? 'border-brand-crimson bg-brand-red-light/60'
                 : 'border-brand-border bg-[#FAF8F5] hover:border-brand-crimson/60'
-            } ${uploading ? 'pointer-events-none opacity-85' : ''}`}
+            }`}
           >
-            {uploading ? (
-              <div className="space-y-2.5 max-w-xs mx-auto">
-                <div className="flex items-center justify-center gap-2 text-xs font-medium text-brand-crimson">
-                  <span className="w-3.5 h-3.5 border-2 border-brand-crimson border-t-transparent rounded-full animate-spin" />
-                  <span>Uploading to Cloudinary... {uploadProgress}%</span>
-                </div>
-                <div className="w-full h-1.5 bg-brand-border rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-brand-crimson transition-all duration-200"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-brand-black">
-                  Click to choose photo/video from device gallery or drag &amp; drop here
-                </p>
-                <p className="text-[11px] text-brand-stone">
-                  Supports JPG, PNG, WebP, MP4, MOV &bull; Uploads directly to Cloudinary
-                </p>
-              </div>
-            )}
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-brand-black">
+                Click to choose photos/videos from gallery or drag &amp; drop here
+              </p>
+              <p className="text-[11px] text-brand-stone">
+                Select multiple JPG, PNG, WebP, MP4, MOV files &bull; Uploads directly to Cloudinary
+              </p>
+            </div>
           </div>
         ) : (
-          <div className="bg-[#FAF8F5] border border-brand-border p-3 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="w-28 h-36 bg-white border border-brand-border overflow-hidden flex-shrink-0">
-              {form.media_type === 'video' ? (
-                <video
-                  src={form.image_url}
-                  controls
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <img
-                  src={form.image_url}
-                  alt={form.title_en || 'Product preview'}
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
+          <div
+            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            className={`p-3 border rounded-sm transition-colors ${
+              isDragging
+                ? 'border-brand-crimson bg-brand-red-light/40'
+                : 'border-brand-border bg-[#FAF8F5]'
+            }`}
+          >
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+              {/* Uploaded Media Cards */}
+              {mediaItems.map((item, idx) => (
+                <div
+                  key={`${item.url}-${idx}`}
+                  className="relative aspect-square bg-white border border-brand-border overflow-hidden group"
+                >
+                  {item.media_type === 'video' ? (
+                    <video
+                      src={item.url}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={item.url}
+                      alt={`Media ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
 
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-semibold">
-                  {form.media_type === 'video' ? 'Video Ready' : 'Photo Ready'}
+                  {idx === 0 && (
+                    <span className="absolute bottom-1.5 left-1.5 bg-brand-black/85 text-white text-[9px] uppercase tracking-wider px-1.5 py-0.5 font-semibold">
+                      Cover
+                    </span>
+                  )}
+
+                  {item.media_type === 'video' && (
+                    <span className="absolute top-1.5 left-1.5 bg-brand-black/75 text-white text-[9px] px-1.5 py-0.5">
+                      ▶
+                    </span>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => removeMediaItem(idx)}
+                    aria-label="Remove media"
+                    title="Remove"
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-brand-black/80 hover:bg-brand-crimson text-white text-xs leading-none flex items-center justify-center transition-colors"
+                  >
+                    &times;
+                  </button>
+                </div>
+              ))}
+
+              {/* Active Upload Progress Tiles */}
+              {activeUploads.map(up => (
+                <div
+                  key={up.id}
+                  className="aspect-square bg-white border border-brand-border flex flex-col items-center justify-center p-2 text-center gap-1.5"
+                >
+                  <span className="w-4 h-4 border-2 border-brand-crimson border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[10px] font-semibold text-brand-crimson">
+                    {up.progress}%
+                  </span>
+                  <div className="w-full h-1 bg-brand-border rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-brand-crimson transition-all duration-150"
+                      style={{ width: `${up.progress}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+
+              {/* + Add Photo/Video Tile */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="aspect-square border-2 border-dashed border-brand-border hover:border-brand-crimson bg-white hover:bg-brand-red-light/30 flex flex-col items-center justify-center gap-1 text-brand-stone hover:text-brand-crimson transition-colors cursor-pointer"
+                title="Add another photo or video"
+              >
+                <span className="text-2xl leading-none font-light">+</span>
+                <span className="text-[9px] uppercase tracking-wider font-medium px-1">
+                  Add Photo/Video
                 </span>
-              </div>
-              <p className="text-[11px] text-brand-stone break-all line-clamp-2">
-                Uploaded and ready to save with this product.
-              </p>
-              <div className="flex flex-wrap gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-3 py-1.5 border border-brand-border bg-white text-brand-black hover:border-brand-crimson hover:text-brand-crimson text-[11px] uppercase tracking-wider transition-colors"
-                >
-                  Replace Media
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, image_url: '', media_type: 'image' }))}
-                  className="px-3 py-1.5 border border-brand-red/30 bg-white text-brand-red-hover hover:bg-brand-red-light text-[11px] uppercase tracking-wider transition-colors"
-                >
-                  Remove
-                </button>
-              </div>
+              </button>
             </div>
           </div>
         )}
@@ -484,7 +751,7 @@ function ProductForm({ initial, onSave, onCancel }) {
       <div className="flex gap-3 pt-2">
         <button type="submit" disabled={saving || uploading}
           className="flex-1 py-2.5 bg-brand-crimson hover:bg-brand-crimson-hover disabled:opacity-60 text-white text-xs uppercase tracking-wider font-medium transition-colors">
-          {uploading ? 'Wait for upload...' : saving ? 'Saving...' : form.id ? 'Update Product' : 'Add Product'}
+          {uploading ? 'Uploading media...' : saving ? 'Saving...' : form.id ? 'Update Product' : 'Add Product'}
         </button>
         <button type="button" onClick={onCancel}
           className="px-5 py-2.5 border border-brand-border text-brand-stone hover:text-brand-black hover:border-brand-black text-xs uppercase tracking-wider transition-colors">
@@ -507,6 +774,10 @@ export default function ParbondeskDashboard() {
   const [showForm, setShowForm] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
   const [togglingStockId, setTogglingStockId] = useState(null);
+
+  // Categories state
+  const [categoryOptions, setCategoryOptions] = useState(DEFAULT_CATEGORIES);
+  const [subcategoriesByParent, setSubcategoriesByParent] = useState({ Saree: DEFAULT_SAREE_SUBS });
 
   // Orders state
   const [orders, setOrders] = useState([]);
@@ -553,7 +824,44 @@ export default function ParbondeskDashboard() {
     }
   }, []);
 
-  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await fetch('/api/categories');
+      const data = await res.json();
+      if (data.ok) {
+        if (Array.isArray(data.categories) && data.categories.length > 0) {
+          setCategoryOptions(data.categories);
+        }
+        if (data.subcategoriesByParent && typeof data.subcategoriesByParent === 'object') {
+          setSubcategoriesByParent(data.subcategoriesByParent);
+        }
+      }
+    } catch {
+      // Keep defaults on error
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProducts();
+    fetchCategories();
+  }, [fetchProducts, fetchCategories]);
+
+  const handleAddCategory = async ({ type, name, parent_category = '' }) => {
+    const res = await fetch('/api/categories', {
+      method: 'POST',
+      headers: authHeader,
+      body: JSON.stringify({ type, name, parent_category }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Failed to add category');
+    if (Array.isArray(data.categories) && data.categories.length > 0) {
+      setCategoryOptions(data.categories);
+    }
+    if (data.subcategoriesByParent && typeof data.subcategoriesByParent === 'object') {
+      setSubcategoriesByParent(data.subcategoriesByParent);
+    }
+    return data.created?.name || name;
+  };
 
   const handleSaveProduct = async (form) => {
     const isEdit = !!form.id;
@@ -575,6 +883,7 @@ export default function ParbondeskDashboard() {
     setShowForm(false);
     setEditProduct(null);
     fetchProducts();
+    fetchCategories();
   };
 
   const handleToggleStock = async (product) => {
@@ -899,6 +1208,9 @@ export default function ParbondeskDashboard() {
                   <ProductForm
                     key={editProduct?.id || 'new'}
                     initial={editProduct}
+                    categories={categoryOptions}
+                    subcategoriesByParent={subcategoriesByParent}
+                    onAddCategory={handleAddCategory}
                     onSave={handleSaveProduct}
                     onCancel={() => { setShowForm(false); setEditProduct(null); }}
                   />
@@ -936,10 +1248,18 @@ export default function ParbondeskDashboard() {
                       {products.map(p => (
                         <tr key={p.id} className="hover:bg-[#FAF8F5]/60 transition-colors">
                           <td className="px-4 py-3">
-                            {p.image_url
-                              ? <ProductMedia item={p} alt={p.title_en} className="w-10 h-12 object-cover border border-brand-border" />
-                              : <div className="w-10 h-12 bg-brand-canvas border border-brand-border flex items-center justify-center text-[10px] text-brand-stone">No media</div>
-                            }
+                            {p.image_url ? (
+                              <div className="relative inline-block">
+                                <ProductMedia item={p} alt={p.title_en} className="w-10 h-12 object-cover border border-brand-border" />
+                                {Array.isArray(p.media_urls) && p.media_urls.length > 1 && (
+                                  <span className="absolute -bottom-1 -right-1 bg-brand-black text-white text-[9px] px-1 rounded-sm">
+                                    +{p.media_urls.length - 1}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="w-10 h-12 bg-brand-canvas border border-brand-border flex items-center justify-center text-[10px] text-brand-stone">No media</div>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="font-medium text-brand-black">{p.title_en}</div>

@@ -2,14 +2,23 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import ProductMedia from './ProductMedia';
-import { isVideoMedia, hasDiscount, getEffectivePrice, isOutOfStock } from '../../utils/products';
+import {
+  isVideoMedia,
+  hasDiscount,
+  getEffectivePrice,
+  isOutOfStock,
+  translateCategoryLabel,
+  translateSubcategoryLabel,
+} from '../../utils/products';
 
 export default function ProductCard({ product }) {
   const { t, formatPrice, language } = useLanguage();
 
   // Category and Subcategory representation
-  const categoryLabel = t(`cat_${product.category.toLowerCase()}`);
-  const subcategoryLabel = product.subcategory ? t(`sub_${product.subcategory.toLowerCase()}`) : null;
+  const categoryLabel = translateCategoryLabel(t, product.category);
+  const subcategoryLabel = product.subcategory
+    ? translateSubcategoryLabel(t, product.subcategory)
+    : null;
   const discounted = hasDiscount(product);
   const effectivePrice = getEffectivePrice(product);
   const outOfStock = isOutOfStock(product);
