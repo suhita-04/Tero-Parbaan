@@ -5,8 +5,11 @@
 @layer base {
   :root {
     --bg-canvas: #FAF8F5;
-    --accent-crimson: #B91C1C;
-    --accent-crimson-hover: #991B1B;
+    --brand-red: #EE1B2E;
+    --brand-red-hover: #D11828;
+    --brand-red-light: #FEF1F2;
+    --accent-crimson: var(--brand-red);
+    --accent-crimson-hover: var(--brand-red-hover);
     --accent-black: #1A1A1A;
     --accent-gold: #C5A059;
     --accent-gold-light: #E8D8B5;
@@ -36,9 +39,9 @@
 @layer components {
   /* Minimalist Boutique Button Primitives */
   .btn-crimson {
-    background-color: #B91C1C;
+    background-color: var(--brand-red);
     color: #FFFFFF;
-    border: 1px solid #B91C1C;
+    border: 1px solid var(--brand-red);
     font-family: 'Inter', sans-serif;
     font-size: 0.8125rem;
     font-weight: 500;
@@ -53,8 +56,8 @@
   }
 
   .btn-crimson:hover {
-    background-color: #991B1B;
-    border-color: #991B1B;
+    background-color: var(--brand-red-hover);
+    border-color: var(--brand-red-hover);
     transform: translateY(-1px);
   }
 
@@ -77,7 +80,7 @@
 
   .btn-outline-boutique:hover {
     border-color: #C5A059;
-    color: #B91C1C;
+    color: var(--brand-red);
     background-color: #FFFFFF;
   }
 

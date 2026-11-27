@@ -89,8 +89,8 @@ export default function Navbar() {
   const navLinkClasses = ({ isActive }) =>
     `whitespace-nowrap text-xs uppercase tracking-boutique transition-all duration-200 py-1.5 border-b ${
       isActive
-        ? 'text-[#B91C1C] border-[#B91C1C] font-semibold'
-        : 'text-brand-stone hover:text-[#B91C1C] hover:border-[#B91C1C] border-transparent'
+        ? 'text-brand-crimson border-brand-crimson font-semibold'
+        : 'text-brand-stone hover:text-brand-crimson hover:border-brand-crimson border-transparent'
     }`;
 
   const isCategoryActive = location.pathname === '/shop' && !location.search.includes('search');
@@ -110,7 +110,7 @@ export default function Navbar() {
           
           {/* Left/Center Notice: "Dhaka Boutique Showroom • Nationwide Delivery" */}
           <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#B91C1C] animate-pulse"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-crimson animate-pulse"></span>
             <p className="text-[10px] sm:text-[11.5px] tracking-[0.16em] sm:tracking-[0.20em] uppercase font-sans text-[#FAF8F5]/90">
               {t('announcement_showroom')}
             </p>
@@ -195,8 +195,8 @@ export default function Navbar() {
                 onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
                 className={`whitespace-nowrap flex items-center gap-1 text-xs uppercase tracking-boutique transition-all duration-200 py-1.5 border-b focus:outline-none ${
                   isCategoryActive || isCategoryDropdownOpen
-                    ? 'text-[#B91C1C] border-[#B91C1C] font-semibold'
-                    : 'text-brand-stone hover:text-[#B91C1C] hover:border-[#B91C1C] border-transparent'
+                    ? 'text-brand-crimson border-brand-crimson font-semibold'
+                    : 'text-brand-stone hover:text-brand-crimson hover:border-brand-crimson border-transparent'
                 }`}
                 aria-expanded={isCategoryDropdownOpen}
                 aria-haspopup="true"
@@ -204,7 +204,7 @@ export default function Navbar() {
                 <span>{t('nav_category')}</span>
                 <svg
                   className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                    isCategoryDropdownOpen ? 'rotate-180 text-[#B91C1C]' : 'text-brand-stone'
+                    isCategoryDropdownOpen ? 'rotate-180 text-brand-crimson' : 'text-brand-stone'
                   }`}
                   fill="none"
                   viewBox="0 0 24 24"
@@ -223,10 +223,10 @@ export default function Navbar() {
                     <Link
                       to="/shop?category=sarees"
                       onClick={() => setIsCategoryDropdownOpen(false)}
-                      className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-brand-black hover:bg-[#B91C1C]/10 hover:text-[#B91C1C] rounded-md transition-colors group"
+                      className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-brand-black hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors group"
                     >
-                      <span className="group-hover:text-[#B91C1C]">{t('cat_sarees')}</span>
-                      <span className="text-[10px] text-brand-stone group-hover:text-[#B91C1C] font-sans font-normal">&rarr; {t('sub_all')}</span>
+                      <span className="group-hover:text-brand-crimson">{t('cat_sarees')}</span>
+                      <span className="text-[10px] text-brand-stone group-hover:text-brand-crimson font-sans font-normal">&rarr; {t('sub_all')}</span>
                     </Link>
 
                     {/* Saree Subcategories (Shuti, Handloom, Muslin, Silk) */}
@@ -234,28 +234,28 @@ export default function Navbar() {
                       <Link
                         to="/shop?category=sarees&sub=shuti"
                         onClick={() => setIsCategoryDropdownOpen(false)}
-                        className="block px-3 py-1.5 text-xs text-brand-stone hover:bg-[#B91C1C]/10 hover:text-[#B91C1C] rounded-md transition-colors"
+                        className="block px-3 py-1.5 text-xs text-brand-stone hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors"
                       >
                         • {t('sub_shuti')}
                       </Link>
                       <Link
                         to="/shop?category=sarees&sub=handloom"
                         onClick={() => setIsCategoryDropdownOpen(false)}
-                        className="block px-3 py-1.5 text-xs text-brand-stone hover:bg-[#B91C1C]/10 hover:text-[#B91C1C] rounded-md transition-colors"
+                        className="block px-3 py-1.5 text-xs text-brand-stone hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors"
                       >
                         • {t('sub_handloom')}
                       </Link>
                       <Link
                         to="/shop?category=sarees&sub=muslin"
                         onClick={() => setIsCategoryDropdownOpen(false)}
-                        className="block px-3 py-1.5 text-xs text-brand-stone hover:bg-[#B91C1C]/10 hover:text-[#B91C1C] rounded-md transition-colors"
+                        className="block px-3 py-1.5 text-xs text-brand-stone hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors"
                       >
                         • {t('sub_muslin')}
                       </Link>
                       <Link
                         to="/shop?category=sarees&sub=silk"
                         onClick={() => setIsCategoryDropdownOpen(false)}
-                        className="block px-3 py-1.5 text-xs text-brand-stone hover:bg-[#B91C1C]/10 hover:text-[#B91C1C] rounded-md transition-colors"
+                        className="block px-3 py-1.5 text-xs text-brand-stone hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors"
                       >
                         • {t('sub_silk')}
                       </Link>
@@ -267,7 +267,7 @@ export default function Navbar() {
                     <Link
                       to="/shop?category=blouses"
                       onClick={() => setIsCategoryDropdownOpen(false)}
-                      className="block px-3 py-2 text-xs uppercase tracking-wider text-brand-black hover:bg-[#B91C1C]/10 hover:text-[#B91C1C] rounded-md transition-colors font-medium"
+                      className="block px-3 py-2 text-xs uppercase tracking-wider text-brand-black hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors font-medium"
                     >
                       {t('cat_blouses')}
                     </Link>
@@ -278,7 +278,7 @@ export default function Navbar() {
                     <Link
                       to="/shop?category=kurtis"
                       onClick={() => setIsCategoryDropdownOpen(false)}
-                      className="block px-3 py-2 text-xs uppercase tracking-wider text-brand-black hover:bg-[#B91C1C]/10 hover:text-[#B91C1C] rounded-md transition-colors font-medium"
+                      className="block px-3 py-2 text-xs uppercase tracking-wider text-brand-black hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors font-medium"
                     >
                       {t('cat_kurtis')}
                     </Link>
@@ -289,7 +289,7 @@ export default function Navbar() {
                     <Link
                       to="/shop?category=stoles"
                       onClick={() => setIsCategoryDropdownOpen(false)}
-                      className="block px-3 py-2 text-xs uppercase tracking-wider text-brand-black hover:bg-[#B91C1C]/10 hover:text-[#B91C1C] rounded-md transition-colors font-medium"
+                      className="block px-3 py-2 text-xs uppercase tracking-wider text-brand-black hover:bg-brand-crimson/10 hover:text-brand-crimson rounded-md transition-colors font-medium"
                     >
                       {t('cat_stoles')}
                     </Link>
@@ -300,7 +300,7 @@ export default function Navbar() {
                     <Link
                       to="/shop"
                       onClick={() => setIsCategoryDropdownOpen(false)}
-                      className="flex items-center justify-between px-3 py-2 text-xs uppercase tracking-wider text-[#B91C1C] hover:bg-[#B91C1C]/10 rounded-md font-semibold transition-colors"
+                      className="flex items-center justify-between px-3 py-2 text-xs uppercase tracking-wider text-brand-crimson hover:bg-brand-crimson/10 rounded-md font-semibold transition-colors"
                     >
                       <span>{t('home_explore_all')}</span>
                       <span>&rarr;</span>
@@ -324,7 +324,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={handleContactClick}
-              className="whitespace-nowrap text-xs uppercase tracking-boutique text-brand-stone hover:text-[#B91C1C] hover:border-[#B91C1C] border-b border-transparent py-1.5 transition-all duration-200 focus:outline-none"
+              className="whitespace-nowrap text-xs uppercase tracking-boutique text-brand-stone hover:text-brand-crimson hover:border-brand-crimson border-b border-transparent py-1.5 transition-all duration-200 focus:outline-none"
             >
               {t('nav_contact_us')}
             </button>
@@ -340,7 +340,7 @@ export default function Navbar() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('search_dresses')}
-                className="w-36 xl:w-44 focus:w-48 transition-all duration-300 text-xs py-1.5 pl-8 pr-6 bg-brand-canvas border border-brand-border focus:border-[#B91C1C] rounded-full text-brand-black placeholder-brand-stone/70 focus:outline-none shadow-inner"
+                className="w-36 xl:w-44 focus:w-48 transition-all duration-300 text-xs py-1.5 pl-8 pr-6 bg-brand-canvas border border-brand-border focus:border-brand-crimson rounded-full text-brand-black placeholder-brand-stone/70 focus:outline-none shadow-inner"
               />
               <button
                 type="submit"

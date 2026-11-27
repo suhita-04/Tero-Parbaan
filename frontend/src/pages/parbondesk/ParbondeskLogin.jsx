@@ -71,7 +71,7 @@ export default function ParbondeskLogin() {
         </div>
 
         {error && (
-          <div className="mb-5 p-3 bg-red-50 border border-red-200 text-brand-crimson text-xs font-sans rounded-sm">
+          <div className="mb-5 p-3 bg-brand-red-light border border-brand-red/25 text-brand-red-hover text-xs font-sans rounded-sm">
             {error}
           </div>
         )}

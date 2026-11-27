@@ -44,7 +44,7 @@ function StatusBadge({ status }) {
     Shipped:   'bg-violet-50 text-violet-700 border-violet-200',
     Delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     Accepted:  'bg-emerald-50 text-emerald-700 border-emerald-200',
-    Rejected:  'bg-red-50 text-red-700 border-red-200',
+    Rejected:  'bg-brand-red-light text-brand-red-hover border-brand-red/25',
   };
   return (
     <span className={`inline-block px-2 py-0.5 text-[10px] font-sans font-semibold uppercase tracking-wider border rounded-full ${map[status] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
@@ -57,7 +57,7 @@ function StatusBadge({ status }) {
 function OrderProgressBar({ status }) {
   if (status === 'Rejected') {
     return (
-      <div className="mb-4 px-3 py-2 bg-red-50/70 border border-red-200 text-red-700 text-[11px] font-sans">
+      <div className="mb-4 px-3 py-2 bg-brand-red-light/70 border border-brand-red/25 text-brand-red-hover text-[11px] font-sans">
         Order marked as <strong>Rejected</strong>.
       </div>
     );
@@ -311,7 +311,7 @@ function ProductForm({ initial, onSave, onCancel }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 text-sm font-sans">
-      {err && <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-sm">{err}</div>}
+      {err && <div className="p-2.5 bg-brand-red-light border border-brand-red/25 text-brand-red-hover text-xs rounded-sm">{err}</div>}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
@@ -391,7 +391,7 @@ function ProductForm({ initial, onSave, onCancel }) {
             onDrop={handleDrop}
             className={`border-2 border-dashed rounded-sm p-6 text-center transition-colors cursor-pointer ${
               isDragging
-                ? 'border-brand-crimson bg-red-50/50'
+                ? 'border-brand-crimson bg-brand-red-light/60'
                 : 'border-brand-border bg-[#FAF8F5] hover:border-brand-crimson/60'
             } ${uploading ? 'pointer-events-none opacity-85' : ''}`}
           >
@@ -459,7 +459,7 @@ function ProductForm({ initial, onSave, onCancel }) {
                 <button
                   type="button"
                   onClick={() => setForm(f => ({ ...f, image_url: '', media_type: 'image' }))}
-                  className="px-3 py-1.5 border border-red-200 bg-white text-red-600 hover:bg-red-50 text-[11px] uppercase tracking-wider transition-colors"
+                  className="px-3 py-1.5 border border-brand-red/30 bg-white text-brand-red-hover hover:bg-brand-red-light text-[11px] uppercase tracking-wider transition-colors"
                 >
                   Remove
                 </button>
@@ -821,7 +821,7 @@ export default function ParbondeskDashboard() {
                 &larr; Storefront
               </Link>
               <button onClick={handleLogout}
-                className="text-stone-400 hover:text-white border border-stone-600 hover:border-red-400 hover:text-red-300 px-2.5 py-1 transition-colors">
+                className="text-stone-400 hover:text-white border border-stone-600 hover:border-brand-red hover:bg-brand-red/20 px-2.5 py-1 transition-colors">
                 Sign Out
               </button>
             </div>
@@ -893,7 +893,7 @@ export default function ParbondeskDashboard() {
                     {editProduct ? `Edit: ${editProduct.title_en}` : 'New Product'}
                   </h3>
                   <style>{`.inp { width:100%; padding:0.5rem 0.75rem; background:#FAF8F5; border:1px solid #E5E0D8; font-size:0.75rem; color:#1A1A1A; outline:none; }
-                    .inp:focus { border-color:#B91C1C; }
+                    .inp:focus { border-color: var(--brand-red); }
                     .label { display:block; font-size:0.65rem; text-transform:uppercase; letter-spacing:0.1em; color:#1A1A1A; font-weight:600; margin-bottom:0.375rem; }`}
                   </style>
                   <ProductForm
@@ -907,7 +907,7 @@ export default function ParbondeskDashboard() {
 
               {/* Error */}
               {productsErr && (
-                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-sans">{productsErr}</div>
+                <div className="p-3 bg-brand-red-light border border-brand-red/25 text-brand-red-hover text-xs font-sans">{productsErr}</div>
               )}
 
               {/* Loading */}
@@ -982,7 +982,7 @@ export default function ParbondeskDashboard() {
                                 />
                               </span>
                               <span className={`text-[10px] uppercase tracking-wider font-medium ${
-                                p.in_stock ? 'text-emerald-700' : 'text-red-600'
+                                p.in_stock ? 'text-emerald-700' : 'text-brand-red'
                               }`}>
                                 {togglingStockId === p.id ? 'Saving...' : p.in_stock ? 'In Stock' : 'Out of Stock'}
                               </span>
@@ -995,7 +995,7 @@ export default function ParbondeskDashboard() {
                                 Edit
                               </button>
                               <button onClick={() => handleDeleteProduct(p.id, p.title_en)}
-                                className="px-2.5 py-1 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors text-[10px] uppercase tracking-wider">
+                                className="px-2.5 py-1 border border-brand-red/30 text-brand-red-hover hover:bg-brand-red-light hover:border-brand-red transition-colors text-[10px] uppercase tracking-wider">
                                 Delete
                               </button>
                             </div>
@@ -1024,7 +1024,7 @@ export default function ParbondeskDashboard() {
               </div>
 
               {ordersErr && (
-                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-sans">{ordersErr}</div>
+                <div className="p-3 bg-brand-red-light border border-brand-red/25 text-brand-red-hover text-xs font-sans">{ordersErr}</div>
               )}
 
               {ordersLoading && (
@@ -1142,7 +1142,7 @@ export default function ParbondeskDashboard() {
                                 type="button"
                                 disabled={isUpdating}
                                 onClick={() => handleOrderStatus(order.id, 'Rejected')}
-                                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-[11px] uppercase tracking-wider font-sans font-medium transition-colors disabled:opacity-60"
+                                className="px-3 py-1.5 bg-brand-red-light hover:bg-brand-red hover:text-white border border-brand-red/30 text-brand-red-hover text-[11px] uppercase tracking-wider font-sans font-medium transition-colors disabled:opacity-60"
                               >
                                 ✕ Reject
                               </button>
@@ -1176,7 +1176,7 @@ export default function ParbondeskDashboard() {
               </div>
 
               {settingsErr && (
-                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-sans">{settingsErr}</div>
+                <div className="p-3 bg-brand-red-light border border-brand-red/25 text-brand-red-hover text-xs font-sans">{settingsErr}</div>
               )}
               {settingsMsg && (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-sans">{settingsMsg}</div>

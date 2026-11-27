@@ -16,13 +16,14 @@ export default {
           'ivory-warm': '#F4EFEA',
           'cream-warm': '#F4EFEA',
           
-          // Logo & Accent Colors
-          crimson: '#B91C1C',      // Signature Bengali Crimson
-          red: '#B91C1C',
-          'crimson-hover': '#991B1B',
-          'red-hover': '#991B1B',
-          'crimson-soft': '#FDF2F2',
-          'red-soft': '#FDF2F2',
+          // Logo & Accent Colors (matched to Tero-Parbaan_logo.png)
+          crimson: '#EE1B2E',      // Exact logo red
+          red: '#EE1B2E',
+          'crimson-hover': '#D11828',
+          'red-hover': '#D11828',
+          'crimson-soft': '#FEF1F2',
+          'red-soft': '#FEF1F2',
+          'red-light': '#FEF1F2',
 
           black: '#1A1A1A',        // Jet Black from circular brand badge
           charcoal: '#1A1A1A',

@@ -289,7 +289,7 @@ export default function CustomerAuthModal({ isOpen, onClose }) {
 
               {/* Status Alerts */}
               {errorMsg && (
-                <div className="mb-4 p-2.5 bg-red-50 border border-red-200 text-brand-crimson text-xs font-sans rounded-sm">
+                <div className="mb-4 p-2.5 bg-brand-red-light border border-brand-red/25 text-brand-red-hover text-xs font-sans rounded-sm">
                   {errorMsg}
                 </div>
               )}
