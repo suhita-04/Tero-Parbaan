@@ -12,10 +12,12 @@ export default function Footer() {
           
           {/* Brand Philosophy & Tagline */}
           <div className="md:col-span-2 space-y-4">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-7 h-7 rounded-full bg-brand-black border border-brand-crimson flex items-center justify-center p-0.5">
-                <span className="font-bengali text-[8px] text-brand-gold font-bold">তেরো</span>
-              </div>
+            <div className="flex items-center space-x-3">
+              <img
+                src="/Tero-Parbaan_logo.png"
+                alt="Tero Parbaan"
+                className="h-11 w-11 rounded-full object-cover shrink-0"
+              />
               <h3 className="font-serif text-2xl tracking-widest uppercase text-brand-crimson font-medium">
                 {t('brand_name')}
               </h3>

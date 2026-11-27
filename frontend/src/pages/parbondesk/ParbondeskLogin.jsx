@@ -54,6 +54,11 @@ export default function ParbondeskLogin() {
         <div className="h-0.5 bg-brand-crimson -mx-8 -mt-8 mb-8" />
 
         <div className="text-center pb-6 mb-6 border-b border-brand-border">
+          <img
+            src="/Tero-Parbaan_logo.png"
+            alt="Tero Parbaan"
+            className="h-14 w-14 rounded-full object-cover mx-auto mb-3 border border-brand-border shadow-sm"
+          />
           <span className="text-[9px] uppercase tracking-[0.3em] text-brand-stone font-sans block mb-1">
             Boutique Atelier
           </span>

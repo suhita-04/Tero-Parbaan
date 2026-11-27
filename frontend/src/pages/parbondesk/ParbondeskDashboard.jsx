@@ -105,13 +105,20 @@ function PrintOrderMemo({ order }) {
     <div id="print-memo-slip" className="hidden print:block bg-white text-black p-6 max-w-2xl mx-auto font-sans">
       {/* Slip Header */}
       <div className="border-b-2 border-black pb-4 mb-5 flex items-start justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold tracking-wide text-black">
-            Tero Parbaan <span className="font-bengali text-xl font-normal ml-1">তেরোপার্বণ</span>
-          </h1>
-          <p className="text-[11px] uppercase tracking-[0.2em] text-stone-600 mt-1">
-            Dhaka Boutique Showroom &bull; Courier Dispatch &amp; Invoice Memo
-          </p>
+        <div className="flex items-center gap-3">
+          <img
+            src="/Tero-Parbaan_logo.png"
+            alt="Tero Parbaan"
+            className="h-11 w-11 rounded-full object-cover shrink-0 border border-stone-300"
+          />
+          <div>
+            <h1 className="font-serif text-3xl font-semibold tracking-wide text-black">
+              Tero Parbaan <span className="font-bengali text-xl font-normal ml-1">তেরোপার্বণ</span>
+            </h1>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-stone-600 mt-1">
+              Dhaka Boutique Showroom &bull; Courier Dispatch &amp; Invoice Memo
+            </p>
+          </div>
         </div>
         <div className="text-right text-xs">
           <div className="font-bold text-base">Order #{order.id}</div>
@@ -792,8 +799,13 @@ export default function ParbondeskDashboard() {
         <header className="bg-[#1A1A1A] text-white border-b border-[#C5A059]/30 sticky top-0 z-30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Link to="/" className="font-serif text-lg tracking-widest uppercase text-[#FAF8F5] hover:text-[#C5A059] transition-colors">
-                Tero Parbaan
+              <Link to="/" className="flex items-center gap-2.5 font-serif text-lg tracking-widest uppercase text-[#FAF8F5] hover:text-[#C5A059] transition-colors">
+                <img
+                  src="/Tero-Parbaan_logo.png"
+                  alt="Tero Parbaan"
+                  className="h-8 w-8 rounded-full object-cover shrink-0 border border-[#C5A059]/40"
+                />
+                <span>Tero Parbaan</span>
               </Link>
               <span className="text-[9px] uppercase tracking-widest text-[#C5A059]/80 bg-white/5 border border-[#C5A059]/20 px-2 py-0.5 font-sans">
                 Operations Desk

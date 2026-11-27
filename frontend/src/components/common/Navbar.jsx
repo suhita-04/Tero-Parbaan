@@ -156,13 +156,12 @@ export default function Navbar() {
           {/* Left: Brand Emblem & Title */}
           <div className="flex items-center shrink-0">
             <Link to="/" onClick={closeMobileMenu} className="group flex items-center space-x-2.5 sm:space-x-3">
-              {/* Circular Crimson & Jet Black Brand Emblem */}
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-brand-black border-2 border-brand-crimson p-0.5 flex items-center justify-center relative overflow-hidden shadow-sm flex-shrink-0 group-hover:scale-105 transition-transform">
-                <div className="w-full h-full rounded-full border border-brand-gold/60 flex flex-col items-center justify-center bg-gradient-to-br from-brand-crimson via-brand-black to-brand-black text-white text-center leading-none">
-                  <span className="font-bengali text-[8px] sm:text-[9px] font-bold text-brand-gold-light tracking-tighter">তেরো</span>
-                  <span className="font-bengali text-[7px] sm:text-[7.5px] text-white tracking-tight -mt-0.5">পার্বণ</span>
-                </div>
-              </div>
+              {/* Brand Logo */}
+              <img
+                src="/Tero-Parbaan_logo.png"
+                alt="Tero Parbaan"
+                className="h-9 w-9 rounded-full object-cover shrink-0 group-hover:scale-105 transition-transform"
+              />
 
               {/* Brand Typography */}
               <div className="flex flex-col text-left">
