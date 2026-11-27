@@ -419,11 +419,18 @@ function ProductForm({
     setErr('');
     setSaving(true);
     try {
+      const sanitizedMedia = mediaItems
+        .map((m) => ({
+          url: String(m?.url || '').trim(),
+          media_type: m?.media_type === 'video' ? 'video' : 'image',
+        }))
+        .filter((m) => m.url && !m.url.startsWith('blob:'));
+
       await onSave({
         ...form,
-        media_items: mediaItems,
-        image_url: mediaItems[0]?.url || '',
-        media_type: mediaItems[0]?.media_type || 'image',
+        media_items: sanitizedMedia,
+        image_url: sanitizedMedia[0]?.url || '',
+        media_type: sanitizedMedia[0]?.media_type || 'image',
       });
     } catch (error) {
       setErr(error.message || 'Save failed');

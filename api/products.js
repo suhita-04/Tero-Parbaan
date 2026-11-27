@@ -1,30 +1,62 @@
 import { getDb, ensureTables, verifyAdmin } from './_db.js';
 
+function parseMaybeJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed === 'string') {
+        const parsedTwice = JSON.parse(parsed);
+        return Array.isArray(parsedTwice) ? parsedTwice : null;
+      }
+      return Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function coerceMediaEntry(item, fallbackType = 'image') {
+  if (!item) return null;
+  if (typeof item === 'string') {
+    const clean = item.trim();
+    if (!clean || clean.startsWith('blob:')) return null;
+    return { url: clean, media_type: fallbackType === 'video' ? 'video' : 'image' };
+  }
+  const rawUrl = item.url ?? item.src ?? item.image_url ?? item.image ?? '';
+  const cleanUrl = String(rawUrl || '').trim();
+  if (!cleanUrl || cleanUrl.startsWith('blob:')) return null;
+  const typeVal = item.media_type ?? item.mediaType ?? fallbackType;
+  return {
+    url: cleanUrl,
+    media_type: typeVal === 'video' ? 'video' : 'image',
+  };
+}
+
 function normalizeMediaPayload(mediaItems, mediaUrls, imageUrl, mediaType) {
-  const sourceArray = Array.isArray(mediaItems)
-    ? mediaItems
-    : Array.isArray(mediaUrls)
-      ? mediaUrls
-      : null;
+  const sourceArray =
+    parseMaybeJsonArray(mediaItems) ?? parseMaybeJsonArray(mediaUrls);
 
   let normalizedItems = [];
   if (sourceArray) {
     normalizedItems = sourceArray
-      .filter((item) => item && String(item.url || '').trim())
-      .map((item) => ({
-        url: String(item.url).trim(),
-        media_type: item.media_type === 'video' ? 'video' : 'image',
-      }));
+      .map((item) => coerceMediaEntry(item, 'image'))
+      .filter(Boolean);
   } else if (imageUrl && String(imageUrl).trim()) {
-    normalizedItems = [
-      {
-        url: String(imageUrl).trim(),
-        media_type: mediaType === 'video' ? 'video' : 'image',
-      },
-    ];
+    const single = coerceMediaEntry(
+      { url: imageUrl, media_type: mediaType },
+      mediaType
+    );
+    if (single) normalizedItems = [single];
   }
 
-  const primaryUrl = normalizedItems[0]?.url || (imageUrl ? String(imageUrl).trim() : '') || '';
+  const cleanFallbackUrl = String(imageUrl || '').trim();
+  const safeFallbackUrl =
+    cleanFallbackUrl && !cleanFallbackUrl.startsWith('blob:') ? cleanFallbackUrl : '';
+  const primaryUrl = normalizedItems[0]?.url || safeFallbackUrl || '';
   const primaryType =
     normalizedItems[0]?.media_type || (mediaType === 'video' ? 'video' : 'image');
 
@@ -32,6 +64,22 @@ function normalizeMediaPayload(mediaItems, mediaUrls, imageUrl, mediaType) {
     mediaUrls: normalizedItems,
     imageUrl: primaryUrl || null,
     mediaType: primaryType,
+  };
+}
+
+function normalizeDbProductRow(row) {
+  if (!row) return row;
+  const { mediaUrls, imageUrl, mediaType } = normalizeMediaPayload(
+    null,
+    row.media_urls,
+    row.image_url,
+    row.media_type
+  );
+  return {
+    ...row,
+    media_urls: mediaUrls,
+    image_url: imageUrl,
+    media_type: mediaType,
   };
 }
 
@@ -49,7 +97,7 @@ export default async function handler(req, res) {
     // GET /api/products — public
     if (req.method === 'GET') {
       const products = await sql`SELECT * FROM products ORDER BY created_at DESC`;
-      return res.status(200).json({ ok: true, products });
+      return res.status(200).json({ ok: true, products: products.map(normalizeDbProductRow) });
     }
 
     // All write operations require admin auth
@@ -93,7 +141,7 @@ export default async function handler(req, res) {
                 ${fabric || null}, ${description || null}, ${imageUrl}, ${mediaType}, ${JSON.stringify(mediaUrls)}::jsonb, ${in_stock !== false})
         RETURNING *
       `;
-      return res.status(201).json({ ok: true, product });
+      return res.status(201).json({ ok: true, product: normalizeDbProductRow(product) });
     }
 
     // PUT — update product
@@ -143,7 +191,7 @@ export default async function handler(req, res) {
         RETURNING *
       `;
       if (!product) return res.status(404).json({ ok: false, error: 'Product not found' });
-      return res.status(200).json({ ok: true, product });
+      return res.status(200).json({ ok: true, product: normalizeDbProductRow(product) });
     }
 
     // DELETE — remove product

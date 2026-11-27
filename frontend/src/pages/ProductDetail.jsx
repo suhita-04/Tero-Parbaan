@@ -105,9 +105,21 @@ export default function ProductDetail() {
   const mediaItems =
     Array.isArray(product.mediaItems) && product.mediaItems.length > 0
       ? product.mediaItems
-      : product.image
-        ? [{ url: product.image, media_type: product.mediaType || product.media_type || 'image' }]
-        : [];
+      : Array.isArray(product.images) && product.images.length > 0
+        ? product.images.map((url) => ({
+            url,
+            media_type: product.mediaType || product.media_type || 'image',
+            mediaType: product.mediaType || product.media_type || 'image',
+          }))
+        : product.image
+          ? [
+              {
+                url: product.image,
+                media_type: product.mediaType || product.media_type || 'image',
+                mediaType: product.mediaType || product.media_type || 'image',
+              },
+            ]
+          : [];
   const activeMedia = mediaItems[activeMediaIndex] || mediaItems[0] || product;
 
   const categoryLabel = translateCategoryLabel(t, product.category);

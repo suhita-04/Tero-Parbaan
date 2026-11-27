@@ -3,20 +3,27 @@ import { isVideoMedia } from '../../utils/products';
 
 /**
  * Renders either an image or a muted looping/playable video depending on media_type.
+ * Supports product objects ({ image, image_url }), media gallery items ({ url, src }), or plain URL strings.
  */
 export default function ProductMedia({
   item,
+  src: explicitSrc,
   alt = '',
   className = '',
   controls = false,
   loading = 'lazy',
 }) {
-  const src = item?.image || item?.image_url || '';
+  const resolvedSrc =
+    explicitSrc ||
+    (typeof item === 'string'
+      ? item
+      : item?.url || item?.src || item?.image || item?.image_url || '');
 
-  if (isVideoMedia(item) && src) {
+  if (isVideoMedia(item) && resolvedSrc) {
     return (
       <video
-        src={src}
+        key={resolvedSrc}
+        src={resolvedSrc}
         controls={controls}
         autoPlay
         muted
@@ -30,7 +37,7 @@ export default function ProductMedia({
 
   return (
     <img
-      src={src}
+      src={resolvedSrc}
       alt={alt}
       loading={loading}
       className={className}

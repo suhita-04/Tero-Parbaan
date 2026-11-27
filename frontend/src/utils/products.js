@@ -1,27 +1,55 @@
+function parseMediaArray(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed === 'string') {
+        const parsedTwice = JSON.parse(parsed);
+        return Array.isArray(parsedTwice) ? parsedTwice : [];
+      }
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function normalizeSingleMediaEntry(item, fallbackType = 'image') {
+  if (!item) return null;
+  if (typeof item === 'string') {
+    const cleanUrl = item.trim();
+    if (!cleanUrl || cleanUrl.startsWith('blob:')) return null;
+    const type = fallbackType === 'video' ? 'video' : 'image';
+    return { url: cleanUrl, media_type: type, mediaType: type };
+  }
+
+  const rawUrl = item.url ?? item.src ?? item.image ?? item.image_url ?? '';
+  const cleanUrl = String(rawUrl || '').trim();
+  if (!cleanUrl || cleanUrl.startsWith('blob:')) return null;
+  const type = (item.mediaType ?? item.media_type ?? fallbackType) === 'video' ? 'video' : 'image';
+  return { url: cleanUrl, media_type: type, mediaType: type };
+}
+
 /**
- * Extract normalized [{ url, media_type }] array from a DB product row.
+ * Extract normalized [{ url, media_type, mediaType }] array from a DB product row.
  */
 export function extractProductMediaItems(p) {
-  if (Array.isArray(p?.media_urls) && p.media_urls.length > 0) {
-    const valid = p.media_urls
-      .filter((item) => item && String(item.url || '').trim())
-      .map((item) => ({
-        url: String(item.url).trim(),
-        media_type: item.media_type === 'video' ? 'video' : 'image',
-      }));
+  const rawList = parseMediaArray(p?.media_urls ?? p?.mediaItems ?? p?.media_items);
+  if (rawList.length > 0) {
+    const valid = rawList
+      .map((item) => normalizeSingleMediaEntry(item, 'image'))
+      .filter(Boolean);
     if (valid.length > 0) return valid;
   }
 
-  if (p?.image_url) {
-    return [
-      {
-        url: p.image_url,
-        media_type: p.media_type === 'video' ? 'video' : 'image',
-      },
-    ];
-  }
-
-  return [];
+  const fallback = normalizeSingleMediaEntry(
+    { url: p?.image_url || p?.image || '', media_type: p?.media_type || p?.mediaType },
+    p?.media_type || p?.mediaType || 'image'
+  );
+  return fallback ? [fallback] : [];
 }
 
 /**
@@ -35,8 +63,9 @@ export function normalizeApiProduct(p) {
 
   const mediaItems = extractProductMediaItems(p);
   const primaryMedia = mediaItems[0] || {
-    url: p.image_url || '',
+    url: String(p.image_url || '').trim(),
     media_type: p.media_type === 'video' ? 'video' : 'image',
+    mediaType: p.media_type === 'video' ? 'video' : 'image',
   };
 
   return {
@@ -51,8 +80,9 @@ export function normalizeApiProduct(p) {
     fabric: { en: p.fabric || '', bn: p.fabric || '' },
     description: { en: p.description || '', bn: p.description || '' },
     image: primaryMedia.url || '',
+    images: mediaItems.map((m) => m.url),
     media_type: primaryMedia.media_type,
-    mediaType: primaryMedia.media_type,
+    mediaType: primaryMedia.mediaType,
     mediaItems,
     in_stock: p.in_stock !== false,
     inStock: p.in_stock !== false,
