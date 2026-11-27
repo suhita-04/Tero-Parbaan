@@ -53,7 +53,7 @@ export default async function handler(req, res) {
     if (req.method === 'PATCH') {
       const { id, status } = req.body || {};
       if (!id || !status) return res.status(400).json({ ok: false, error: 'id and status are required' });
-      const VALID_STATUSES = ['Pending', 'Accepted', 'Rejected'];
+      const VALID_STATUSES = ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Rejected'];
       if (!VALID_STATUSES.includes(status)) {
         return res.status(400).json({ ok: false, error: `status must be one of: ${VALID_STATUSES.join(', ')}` });
       }

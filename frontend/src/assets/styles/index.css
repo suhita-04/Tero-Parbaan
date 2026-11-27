@@ -145,3 +145,16 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #C5A059;
 }
+
+@media print {
+  @page {
+    size: auto;
+    margin: 12mm;
+  }
+
+  body {
+    background-color: #FFFFFF !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

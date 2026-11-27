@@ -1,19 +1,182 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import ProductMedia from '../../components/product/ProductMedia';
 
+const ORDER_STAGES = ['Pending', 'Confirmed', 'Shipped', 'Delivered'];
+const ALL_ORDER_STATUSES = ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Rejected'];
+const REVENUE_STATUSES = new Set(['Confirmed', 'Shipped', 'Delivered']);
+
+function normalizeBdPhone(rawPhone) {
+  const trimmed = String(rawPhone || '').trim();
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return { tel: '', wa: '' };
+
+  let wa = digits;
+  if (digits.startsWith('880')) {
+    wa = digits;
+  } else if (digits.startsWith('0')) {
+    wa = `88${digits}`;
+  } else if (digits.startsWith('1') && digits.length === 10) {
+    wa = `880${digits}`;
+  } else if (!digits.startsWith('88')) {
+    wa = `88${digits}`;
+  }
+
+  const tel = trimmed.startsWith('+') ? `+${digits}` : digits;
+  return { tel, wa };
+}
+
+function buildWhatsAppUrl(order) {
+  const { wa } = normalizeBdPhone(order.phone);
+  if (!wa) return '#';
+  const totalFormatted = Number(order.total || 0).toLocaleString('en-IN');
+  const message = `Hello ${order.customer_name}, thank you for shopping with Tero Parbaan! Your order #${order.id} (Total: ৳${totalFormatted}, COD) has been received and we are confirming your delivery details.`;
+  return `https://wa.me/${wa}?text=${encodeURIComponent(message)}`;
+}
+
 // ─── Status Badge ────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
   const map = {
-    Pending:  'bg-yellow-50 text-yellow-700 border-yellow-200',
-    Accepted: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    Rejected: 'bg-red-50 text-red-700 border-red-200',
+    Pending:   'bg-amber-50 text-amber-700 border-amber-200',
+    Confirmed: 'bg-blue-50 text-blue-700 border-blue-200',
+    Shipped:   'bg-violet-50 text-violet-700 border-violet-200',
+    Delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    Accepted:  'bg-emerald-50 text-emerald-700 border-emerald-200',
+    Rejected:  'bg-red-50 text-red-700 border-red-200',
   };
   return (
     <span className={`inline-block px-2 py-0.5 text-[10px] font-sans font-semibold uppercase tracking-wider border rounded-full ${map[status] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
       {status}
     </span>
+  );
+}
+
+// ─── 4-Stage Order Progress Bar ──────────────────────────────────────────────
+function OrderProgressBar({ status }) {
+  if (status === 'Rejected') {
+    return (
+      <div className="mb-4 px-3 py-2 bg-red-50/70 border border-red-200 text-red-700 text-[11px] font-sans">
+        Order marked as <strong>Rejected</strong>.
+      </div>
+    );
+  }
+
+  const currentIdx = ORDER_STAGES.indexOf(status);
+
+  return (
+    <div className="mb-4 py-2.5 px-3 bg-[#FAF8F5] border border-brand-border/80">
+      <div className="grid grid-cols-4 gap-2">
+        {ORDER_STAGES.map((stage, idx) => {
+          const isCompleted = currentIdx >= idx;
+          const isCurrent = currentIdx === idx;
+          return (
+            <div key={stage} className="space-y-1.5">
+              <div
+                className={`h-1 w-full rounded-full transition-colors ${
+                  isCompleted ? 'bg-brand-crimson' : 'bg-brand-border'
+                }`}
+              />
+              <div className={`text-[10px] uppercase tracking-wider font-sans text-center ${
+                isCurrent
+                  ? 'text-brand-crimson font-semibold'
+                  : isCompleted
+                    ? 'text-brand-black font-medium'
+                    : 'text-brand-stone'
+              }`}>
+                {stage}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Print-Ready Courier Slip / Invoice ──────────────────────────────────────
+function PrintOrderMemo({ order }) {
+  if (!order) return null;
+
+  const items = Array.isArray(order.items) ? order.items : [];
+
+  return (
+    <div id="print-memo-slip" className="hidden print:block bg-white text-black p-6 max-w-2xl mx-auto font-sans">
+      {/* Slip Header */}
+      <div className="border-b-2 border-black pb-4 mb-5 flex items-start justify-between">
+        <div>
+          <h1 className="font-serif text-3xl font-semibold tracking-wide text-black">
+            Tero Parbaan <span className="font-bengali text-xl font-normal ml-1">তেরোপার্বণ</span>
+          </h1>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-stone-600 mt-1">
+            Dhaka Boutique Showroom &bull; Courier Dispatch &amp; Invoice Memo
+          </p>
+        </div>
+        <div className="text-right text-xs">
+          <div className="font-bold text-base">Order #{order.id}</div>
+          <div className="text-stone-600 mt-0.5">
+            {new Date(order.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+          </div>
+          <div className="uppercase tracking-wider text-[10px] font-semibold mt-1">
+            Status: {order.status}
+          </div>
+        </div>
+      </div>
+
+      {/* Recipient / Shipping Info */}
+      <div className="border border-stone-300 p-4 mb-5 grid grid-cols-2 gap-4 text-xs">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold mb-1">Recipient</p>
+          <p className="font-semibold text-sm text-black">{order.customer_name}</p>
+          <p className="mt-1 font-medium">Phone: {order.phone}</p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold mb-1">Delivery Address</p>
+          <p className="text-black leading-relaxed">{order.address}</p>
+        </div>
+      </div>
+
+      {/* Items Table */}
+      <table className="w-full text-xs border-collapse mb-5">
+        <thead>
+          <tr className="border-y border-black bg-stone-100">
+            <th className="py-2 px-2 text-left uppercase tracking-wider text-[10px] font-semibold">Item</th>
+            <th className="py-2 px-2 text-center uppercase tracking-wider text-[10px] font-semibold">Qty</th>
+            <th className="py-2 px-2 text-right uppercase tracking-wider text-[10px] font-semibold">Amount (৳)</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-stone-200">
+          {items.map((item, idx) => (
+            <tr key={idx}>
+              <td className="py-2 px-2">
+                {item.title_en || item.title?.en || item.title || 'Item'}
+                {item.size ? ` (${item.size})` : ''}
+              </td>
+              <td className="py-2 px-2 text-center">{item.quantity || 1}</td>
+              <td className="py-2 px-2 text-right font-medium">
+                ৳{((item.price || 0) * (item.quantity || 1)).toLocaleString('en-IN')}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Totals & Payment */}
+      <div className="border-t-2 border-black pt-3 flex items-center justify-between text-sm">
+        <div>
+          <span className="text-xs uppercase tracking-wider text-stone-600">Payment Mode: </span>
+          <strong className="text-xs">Cash on Delivery (COD)</strong>
+        </div>
+        <div className="text-right">
+          <span className="text-xs uppercase tracking-wider text-stone-600 mr-3">Total Payable:</span>
+          <strong className="text-lg">৳{Number(order.total || 0).toLocaleString('en-IN')}</strong>
+        </div>
+      </div>
+
+      <p className="mt-8 pt-3 border-t border-dashed border-stone-300 text-center text-[10px] text-stone-500 uppercase tracking-widest">
+        Thank you for choosing Tero Parbaan &bull; Printed {new Date().toLocaleDateString('en-US', { dateStyle: 'medium' })}
+      </p>
+    </div>
   );
 }
 
@@ -330,6 +493,8 @@ export default function ParbondeskDashboard() {
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersErr, setOrdersErr] = useState('');
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
+  const [printOrder, setPrintOrder] = useState(null);
 
   const { adminToken, clearAdminToken } = useAdminAuth();
   const token = adminToken;
@@ -403,268 +568,435 @@ export default function ParbondeskDashboard() {
     }
   }, [token]);
 
+  // Load orders on mount so KPI summary cards are always populated
   useEffect(() => {
-    if (activeTab === 'orders') fetchOrders();
-  }, [activeTab, fetchOrders]);
+    fetchOrders();
+  }, [fetchOrders]);
+
+  // Trigger window.print() after PrintOrderMemo mounts in the DOM
+  useEffect(() => {
+    if (!printOrder) return;
+    const handleAfterPrint = () => setPrintOrder(null);
+    window.addEventListener('afterprint', handleAfterPrint);
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.print();
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, [printOrder]);
 
   const handleOrderStatus = async (id, status) => {
-    const res = await fetch('/api/orders', {
-      method: 'PATCH',
-      headers: authHeader,
-      body: JSON.stringify({ id, status }),
-    });
-    const data = await res.json();
-    if (data.ok) {
-      setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
-    } else {
-      alert(data.error || 'Status update failed');
+    setUpdatingOrderId(id);
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: authHeader,
+        body: JSON.stringify({ id, status }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+      } else {
+        alert(data.error || 'Status update failed');
+      }
+    } catch {
+      alert('Network error updating order status');
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
+  // ── Overview KPI Calculations ──
+  const kpis = useMemo(() => {
+    const todayKey = new Date().toDateString();
+    let todaysOrders = 0;
+    let pendingOrders = 0;
+    let totalRevenue = 0;
+
+    for (const order of orders) {
+      if (order.created_at && new Date(order.created_at).toDateString() === todayKey) {
+        todaysOrders += 1;
+      }
+      if (order.status === 'Pending') {
+        pendingOrders += 1;
+      }
+      if (REVENUE_STATUSES.has(order.status)) {
+        totalRevenue += Number(order.total) || 0;
+      }
+    }
+
+    const outOfStockProducts = products.filter(p => p.in_stock === false).length;
+
+    return [
+      {
+        label: "Today's Orders",
+        value: todaysOrders.toLocaleString('en-IN'),
+        sub: 'Placed today',
+        accent: 'border-t-brand-black',
+      },
+      {
+        label: 'Pending Orders',
+        value: pendingOrders.toLocaleString('en-IN'),
+        sub: 'Awaiting confirmation',
+        accent: 'border-t-amber-500',
+        valueClass: pendingOrders > 0 ? 'text-amber-700' : 'text-brand-black',
+      },
+      {
+        label: 'Total Revenue',
+        value: `৳${totalRevenue.toLocaleString('en-IN')}`,
+        sub: 'Confirmed / Shipped / Delivered',
+        accent: 'border-t-brand-crimson',
+        valueClass: 'text-brand-crimson',
+      },
+      {
+        label: 'Out-of-Stock Products',
+        value: outOfStockProducts.toLocaleString('en-IN'),
+        sub: 'Needs restock',
+        accent: 'border-t-[#C5A059]',
+        valueClass: outOfStockProducts > 0 ? 'text-brand-crimson' : 'text-brand-black',
+      },
+    ];
+  }, [orders, products]);
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#FAF8F5]">
-      {/* Top Bar */}
-      <header className="bg-[#1A1A1A] text-white border-b border-[#C5A059]/30 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link to="/" className="font-serif text-lg tracking-widest uppercase text-[#FAF8F5] hover:text-[#C5A059] transition-colors">
-              Tero Parbaan
-            </Link>
-            <span className="text-[9px] uppercase tracking-widest text-[#C5A059]/80 bg-white/5 border border-[#C5A059]/20 px-2 py-0.5 font-sans">
-              Operations Desk
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 sm:gap-5 text-xs font-sans">
-            <div className="hidden sm:flex items-center gap-2 text-stone-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Live Session</span>
-            </div>
-            <Link to="/" className="text-stone-400 hover:text-white border border-stone-600 hover:border-stone-400 px-2.5 py-1 transition-colors">
-              &larr; Storefront
-            </Link>
-            <button onClick={handleLogout}
-              className="text-stone-400 hover:text-white border border-stone-600 hover:border-red-400 hover:text-red-300 px-2.5 py-1 transition-colors">
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {/* Page Title */}
-        <div className="mb-6">
-          <h1 className="font-serif text-2xl sm:text-3xl text-brand-black font-medium">Admin Dashboard</h1>
-          <p className="text-xs text-brand-stone font-sans mt-1">Manage products and customer orders</p>
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="flex border-b border-brand-border mb-6 gap-1">
-          {['products', 'orders'].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-6 py-2.5 text-xs uppercase tracking-wider font-sans border-b-2 transition-all ${
-                activeTab === tab
-                  ? 'border-brand-crimson text-brand-crimson font-semibold'
-                  : 'border-transparent text-brand-stone hover:text-brand-black'
-              }`}>
-              {tab === 'products' ? '📦 Products' : '📋 Orders'}
-            </button>
-          ))}
-        </div>
-
-        {/* ─── PRODUCTS TAB ─── */}
-        {activeTab === 'products' && (
-          <div className="space-y-5">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif text-xl text-brand-black">Product Catalog</h2>
-              {!showForm && (
-                <button onClick={() => { setShowForm(true); setEditProduct(null); }}
-                  className="px-4 py-2 bg-brand-crimson hover:bg-brand-crimson-hover text-white text-xs uppercase tracking-wider font-sans transition-colors">
-                  + Add Product
-                </button>
-              )}
+    <>
+      <div className="min-h-screen bg-[#FAF8F5] print:hidden">
+        {/* Top Bar */}
+        <header className="bg-[#1A1A1A] text-white border-b border-[#C5A059]/30 sticky top-0 z-30">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Link to="/" className="font-serif text-lg tracking-widest uppercase text-[#FAF8F5] hover:text-[#C5A059] transition-colors">
+                Tero Parbaan
+              </Link>
+              <span className="text-[9px] uppercase tracking-widest text-[#C5A059]/80 bg-white/5 border border-[#C5A059]/20 px-2 py-0.5 font-sans">
+                Operations Desk
+              </span>
             </div>
 
-            {/* Add / Edit Form */}
-            {showForm && (
-              <div className="bg-white border border-brand-border p-5 sm:p-6 shadow-sm">
-                <h3 className="font-serif text-lg text-brand-black mb-4">
-                  {editProduct ? `Edit: ${editProduct.title_en}` : 'New Product'}
-                </h3>
-                <style>{`.inp { width:100%; padding:0.5rem 0.75rem; background:#FAF8F5; border:1px solid #E5E0D8; font-size:0.75rem; color:#1A1A1A; outline:none; }
-                  .inp:focus { border-color:#B91C1C; }
-                  .label { display:block; font-size:0.65rem; text-transform:uppercase; letter-spacing:0.1em; color:#1A1A1A; font-weight:600; margin-bottom:0.375rem; }`}
-                </style>
-                <ProductForm
-                  key={editProduct?.id || 'new'}
-                  initial={editProduct}
-                  onSave={handleSaveProduct}
-                  onCancel={() => { setShowForm(false); setEditProduct(null); }}
-                />
+            <div className="flex items-center gap-3 sm:gap-5 text-xs font-sans">
+              <div className="hidden sm:flex items-center gap-2 text-stone-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Live Session</span>
               </div>
-            )}
-
-            {/* Error */}
-            {productsErr && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-sans">{productsErr}</div>
-            )}
-
-            {/* Loading */}
-            {productsLoading && (
-              <div className="text-center py-16 text-brand-stone font-sans text-sm">Loading products...</div>
-            )}
-
-            {/* Products Table */}
-            {!productsLoading && products.length === 0 && (
-              <div className="text-center py-16 text-brand-stone font-sans text-sm">
-                No products yet. Add your first product above.
-              </div>
-            )}
-
-            {!productsLoading && products.length > 0 && (
-              <div className="bg-white border border-brand-border overflow-x-auto shadow-sm">
-                <table className="w-full text-xs font-sans">
-                  <thead>
-                    <tr className="bg-[#FAF8F5] border-b border-brand-border">
-                      {['Media', 'Title', 'Category', 'Price ৳', 'Stock', 'Actions'].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-[10px] uppercase tracking-wider text-brand-stone font-semibold">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-brand-border">
-                    {products.map(p => (
-                      <tr key={p.id} className="hover:bg-[#FAF8F5]/60 transition-colors">
-                        <td className="px-4 py-3">
-                          {p.image_url
-                            ? <ProductMedia item={p} alt={p.title_en} className="w-10 h-12 object-cover border border-brand-border" />
-                            : <div className="w-10 h-12 bg-brand-canvas border border-brand-border flex items-center justify-center text-[10px] text-brand-stone">No media</div>
-                          }
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-brand-black">{p.title_en}</div>
-                          {p.title_bn && <div className="text-brand-stone font-bengali text-[11px]">{p.title_bn}</div>}
-                        </td>
-                        <td className="px-4 py-3 text-brand-stone">
-                          {p.category}{p.subcategory ? ` › ${p.subcategory}` : ''}
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-brand-black">৳{p.price?.toLocaleString('en-IN')}</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 text-[10px] border rounded-full ${p.in_stock ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
-                            {p.in_stock ? 'In Stock' : 'Out'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => { setEditProduct(p); setShowForm(true); }}
-                              className="px-2.5 py-1 border border-brand-border text-brand-stone hover:text-brand-black hover:border-brand-black transition-colors text-[10px] uppercase tracking-wider">
-                              Edit
-                            </button>
-                            <button onClick={() => handleDeleteProduct(p.id, p.title_en)}
-                              className="px-2.5 py-1 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors text-[10px] uppercase tracking-wider">
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="px-4 py-2.5 border-t border-brand-border text-[11px] text-brand-stone font-sans">
-                  {products.length} product{products.length !== 1 ? 's' : ''} in catalog
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ─── ORDERS TAB ─── */}
-        {activeTab === 'orders' && (
-          <div className="space-y-5">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif text-xl text-brand-black">Incoming Orders</h2>
-              <button onClick={fetchOrders}
-                className="px-4 py-2 border border-brand-border text-brand-stone hover:text-brand-black hover:border-brand-black text-xs uppercase tracking-wider font-sans transition-colors">
-                ↻ Refresh
+              <Link to="/" className="text-stone-400 hover:text-white border border-stone-600 hover:border-stone-400 px-2.5 py-1 transition-colors">
+                &larr; Storefront
+              </Link>
+              <button onClick={handleLogout}
+                className="text-stone-400 hover:text-white border border-stone-600 hover:border-red-400 hover:text-red-300 px-2.5 py-1 transition-colors">
+                Sign Out
               </button>
             </div>
-
-            {ordersErr && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-sans">{ordersErr}</div>
-            )}
-
-            {ordersLoading && (
-              <div className="text-center py-16 text-brand-stone font-sans text-sm">Loading orders...</div>
-            )}
-
-            {!ordersLoading && orders.length === 0 && (
-              <div className="text-center py-16 text-brand-stone font-sans text-sm">No orders yet.</div>
-            )}
-
-            {!ordersLoading && orders.length > 0 && (
-              <div className="space-y-4">
-                {orders.map(order => (
-                  <div key={order.id} className="bg-white border border-brand-border p-5 shadow-sm">
-                    <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-serif text-base text-brand-black font-medium">#{order.id} — {order.customer_name}</span>
-                          <StatusBadge status={order.status} />
-                        </div>
-                        <div className="text-xs text-brand-stone font-sans space-y-0.5">
-                          <div>📞 {order.phone}</div>
-                          <div>📍 {order.address}</div>
-                          <div>🕐 {new Date(order.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-serif text-xl text-brand-crimson font-bold">৳{order.total?.toLocaleString('en-IN')}</div>
-                        <div className="text-[10px] text-brand-stone font-sans">Total (COD)</div>
-                      </div>
-                    </div>
-
-                    {/* Items */}
-                    <div className="border-t border-brand-border pt-3 mb-4">
-                      <p className="text-[10px] uppercase tracking-wider text-brand-stone font-sans mb-2">Items Ordered</p>
-                      <div className="space-y-1.5">
-                        {(Array.isArray(order.items) ? order.items : []).map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-xs font-sans">
-                            <span className="text-brand-black">
-                              {item.title_en || item.title?.en || item.title || 'Item'}
-                              {item.size ? ` (${item.size})` : ''}
-                              {' '}&times; {item.quantity || 1}
-                            </span>
-                            <span className="font-semibold text-brand-black">৳{((item.price || 0) * (item.quantity || 1)).toLocaleString('en-IN')}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Accept / Reject Actions */}
-                    {order.status === 'Pending' && (
-                      <div className="flex gap-2.5">
-                        <button onClick={() => handleOrderStatus(order.id, 'Accepted')}
-                          className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs uppercase tracking-wider font-sans font-medium transition-colors">
-                          ✓ Accept Order
-                        </button>
-                        <button onClick={() => handleOrderStatus(order.id, 'Rejected')}
-                          className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white text-xs uppercase tracking-wider font-sans font-medium transition-colors">
-                          ✕ Reject Order
-                        </button>
-                      </div>
-                    )}
-                    {order.status !== 'Pending' && (
-                      <div className="text-center text-xs text-brand-stone font-sans pt-1">
-                        Order {order.status.toLowerCase()} — no further action needed.
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
-        )}
-      </main>
-    </div>
+        </header>
+
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+          {/* Page Title */}
+          <div className="mb-6">
+            <h1 className="font-serif text-2xl sm:text-3xl text-brand-black font-medium">Admin Dashboard</h1>
+            <p className="text-xs text-brand-stone font-sans mt-1">Manage products, track orders, and print courier memos</p>
+          </div>
+
+          {/* Overview KPI Cards */}
+          <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-7">
+            {kpis.map((kpi) => (
+              <div
+                key={kpi.label}
+                className={`bg-white border border-brand-border border-t-2 ${kpi.accent} p-4 shadow-sm`}
+              >
+                <p className="text-[10px] uppercase tracking-widest text-brand-stone font-sans font-semibold">
+                  {kpi.label}
+                </p>
+                <p className={`font-serif text-2xl sm:text-3xl font-semibold mt-1.5 ${kpi.valueClass || 'text-brand-black'}`}>
+                  {kpi.value}
+                </p>
+                <p className="text-[11px] text-brand-stone font-sans mt-1">
+                  {kpi.sub}
+                </p>
+              </div>
+            ))}
+          </section>
+
+          {/* Tab Switcher */}
+          <div className="flex border-b border-brand-border mb-6 gap-1">
+            {['products', 'orders'].map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className={`px-6 py-2.5 text-xs uppercase tracking-wider font-sans border-b-2 transition-all ${
+                  activeTab === tab
+                    ? 'border-brand-crimson text-brand-crimson font-semibold'
+                    : 'border-transparent text-brand-stone hover:text-brand-black'
+                }`}>
+                {tab === 'products' ? '📦 Products' : `📋 Orders (${orders.length})`}
+              </button>
+            ))}
+          </div>
+
+          {/* ─── PRODUCTS TAB ─── */}
+          {activeTab === 'products' && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-xl text-brand-black">Product Catalog</h2>
+                {!showForm && (
+                  <button onClick={() => { setShowForm(true); setEditProduct(null); }}
+                    className="px-4 py-2 bg-brand-crimson hover:bg-brand-crimson-hover text-white text-xs uppercase tracking-wider font-sans transition-colors">
+                    + Add Product
+                  </button>
+                )}
+              </div>
+
+              {/* Add / Edit Form */}
+              {showForm && (
+                <div className="bg-white border border-brand-border p-5 sm:p-6 shadow-sm">
+                  <h3 className="font-serif text-lg text-brand-black mb-4">
+                    {editProduct ? `Edit: ${editProduct.title_en}` : 'New Product'}
+                  </h3>
+                  <style>{`.inp { width:100%; padding:0.5rem 0.75rem; background:#FAF8F5; border:1px solid #E5E0D8; font-size:0.75rem; color:#1A1A1A; outline:none; }
+                    .inp:focus { border-color:#B91C1C; }
+                    .label { display:block; font-size:0.65rem; text-transform:uppercase; letter-spacing:0.1em; color:#1A1A1A; font-weight:600; margin-bottom:0.375rem; }`}
+                  </style>
+                  <ProductForm
+                    key={editProduct?.id || 'new'}
+                    initial={editProduct}
+                    onSave={handleSaveProduct}
+                    onCancel={() => { setShowForm(false); setEditProduct(null); }}
+                  />
+                </div>
+              )}
+
+              {/* Error */}
+              {productsErr && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-sans">{productsErr}</div>
+              )}
+
+              {/* Loading */}
+              {productsLoading && (
+                <div className="text-center py-16 text-brand-stone font-sans text-sm">Loading products...</div>
+              )}
+
+              {/* Products Table */}
+              {!productsLoading && products.length === 0 && (
+                <div className="text-center py-16 text-brand-stone font-sans text-sm">
+                  No products yet. Add your first product above.
+                </div>
+              )}
+
+              {!productsLoading && products.length > 0 && (
+                <div className="bg-white border border-brand-border overflow-x-auto shadow-sm">
+                  <table className="w-full text-xs font-sans">
+                    <thead>
+                      <tr className="bg-[#FAF8F5] border-b border-brand-border">
+                        {['Media', 'Title', 'Category', 'Price ৳', 'Stock', 'Actions'].map(h => (
+                          <th key={h} className="px-4 py-3 text-left text-[10px] uppercase tracking-wider text-brand-stone font-semibold">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-border">
+                      {products.map(p => (
+                        <tr key={p.id} className="hover:bg-[#FAF8F5]/60 transition-colors">
+                          <td className="px-4 py-3">
+                            {p.image_url
+                              ? <ProductMedia item={p} alt={p.title_en} className="w-10 h-12 object-cover border border-brand-border" />
+                              : <div className="w-10 h-12 bg-brand-canvas border border-brand-border flex items-center justify-center text-[10px] text-brand-stone">No media</div>
+                            }
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-brand-black">{p.title_en}</div>
+                            {p.title_bn && <div className="text-brand-stone font-bengali text-[11px]">{p.title_bn}</div>}
+                          </td>
+                          <td className="px-4 py-3 text-brand-stone">
+                            {p.category}{p.subcategory ? ` › ${p.subcategory}` : ''}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-brand-black">৳{p.price?.toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 text-[10px] border rounded-full ${p.in_stock ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
+                              {p.in_stock ? 'In Stock' : 'Out'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => { setEditProduct(p); setShowForm(true); }}
+                                className="px-2.5 py-1 border border-brand-border text-brand-stone hover:text-brand-black hover:border-brand-black transition-colors text-[10px] uppercase tracking-wider">
+                                Edit
+                              </button>
+                              <button onClick={() => handleDeleteProduct(p.id, p.title_en)}
+                                className="px-2.5 py-1 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors text-[10px] uppercase tracking-wider">
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="px-4 py-2.5 border-t border-brand-border text-[11px] text-brand-stone font-sans">
+                    {products.length} product{products.length !== 1 ? 's' : ''} in catalog
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── ORDERS TAB ─── */}
+          {activeTab === 'orders' && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-xl text-brand-black">Incoming Orders</h2>
+                <button onClick={fetchOrders}
+                  className="px-4 py-2 border border-brand-border text-brand-stone hover:text-brand-black hover:border-brand-black text-xs uppercase tracking-wider font-sans transition-colors">
+                  ↻ Refresh
+                </button>
+              </div>
+
+              {ordersErr && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-sans">{ordersErr}</div>
+              )}
+
+              {ordersLoading && (
+                <div className="text-center py-16 text-brand-stone font-sans text-sm">Loading orders...</div>
+              )}
+
+              {!ordersLoading && orders.length === 0 && (
+                <div className="text-center py-16 text-brand-stone font-sans text-sm">No orders yet.</div>
+              )}
+
+              {!ordersLoading && orders.length > 0 && (
+                <div className="space-y-4">
+                  {orders.map(order => {
+                    const { tel } = normalizeBdPhone(order.phone);
+                    const waUrl = buildWhatsAppUrl(order);
+                    const isUpdating = updatingOrderId === order.id;
+
+                    const nextStageMap = {
+                      Pending: { status: 'Confirmed', label: '✓ Confirm Order', cls: 'bg-blue-600 hover:bg-blue-700 text-white' },
+                      Confirmed: { status: 'Shipped', label: '🚚 Mark Shipped', cls: 'bg-violet-600 hover:bg-violet-700 text-white' },
+                      Shipped: { status: 'Delivered', label: '✓ Mark Delivered', cls: 'bg-emerald-600 hover:bg-emerald-700 text-white' },
+                    };
+                    const nextAction = nextStageMap[order.status];
+
+                    return (
+                      <div key={order.id} className="bg-white border border-brand-border p-5 shadow-sm">
+                        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="font-serif text-base text-brand-black font-medium">#{order.id} — {order.customer_name}</span>
+                              <StatusBadge status={order.status} />
+                            </div>
+                            <div className="text-xs text-brand-stone font-sans space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span>📞 {order.phone}</span>
+                                {tel && (
+                                  <a
+                                    href={`tel:${tel}`}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] uppercase tracking-wider font-medium bg-[#FAF8F5] border border-brand-border text-brand-black hover:border-brand-crimson hover:text-brand-crimson transition-colors"
+                                  >
+                                    Call
+                                  </a>
+                                )}
+                                {waUrl !== '#' && (
+                                  <a
+                                    href={waUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] uppercase tracking-wider font-medium bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                                  >
+                                    WhatsApp
+                                  </a>
+                                )}
+                              </div>
+                              <div>📍 {order.address}</div>
+                              <div>🕐 {new Date(order.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-serif text-xl text-brand-crimson font-bold">৳{Number(order.total || 0).toLocaleString('en-IN')}</div>
+                            <div className="text-[10px] text-brand-stone font-sans">Total (COD)</div>
+                          </div>
+                        </div>
+
+                        {/* 4-Stage Progress Bar */}
+                        <OrderProgressBar status={order.status} />
+
+                        {/* Items */}
+                        <div className="border-t border-brand-border pt-3 mb-4">
+                          <p className="text-[10px] uppercase tracking-wider text-brand-stone font-sans mb-2">Items Ordered</p>
+                          <div className="space-y-1.5">
+                            {(Array.isArray(order.items) ? order.items : []).map((item, idx) => (
+                              <div key={idx} className="flex justify-between items-center text-xs font-sans">
+                                <span className="text-brand-black">
+                                  {item.title_en || item.title?.en || item.title || 'Item'}
+                                  {item.size ? ` (${item.size})` : ''}
+                                  {' '}&times; {item.quantity || 1}
+                                </span>
+                                <span className="font-semibold text-brand-black">৳{((item.price || 0) * (item.quantity || 1)).toLocaleString('en-IN')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Order Controls: Status Dropdown, Quick Next Action, Print Memo */}
+                        <div className="border-t border-brand-border pt-3 flex flex-wrap items-center justify-between gap-2.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <label className="text-[10px] uppercase tracking-wider text-brand-stone font-sans font-semibold">
+                              Status:
+                            </label>
+                            <select
+                              value={order.status}
+                              disabled={isUpdating}
+                              onChange={(e) => handleOrderStatus(order.id, e.target.value)}
+                              className="px-2.5 py-1.5 bg-[#FAF8F5] border border-brand-border text-xs font-sans text-brand-black focus:outline-none focus:border-brand-crimson disabled:opacity-60"
+                            >
+                              {ALL_ORDER_STATUSES.map(st => (
+                                <option key={st} value={st}>{st}</option>
+                              ))}
+                            </select>
+
+                            {nextAction && (
+                              <button
+                                type="button"
+                                disabled={isUpdating}
+                                onClick={() => handleOrderStatus(order.id, nextAction.status)}
+                                className={`px-3 py-1.5 text-[11px] uppercase tracking-wider font-sans font-medium transition-colors disabled:opacity-60 ${nextAction.cls}`}
+                              >
+                                {nextAction.label}
+                              </button>
+                            )}
+
+                            {order.status === 'Pending' && (
+                              <button
+                                type="button"
+                                disabled={isUpdating}
+                                onClick={() => handleOrderStatus(order.id, 'Rejected')}
+                                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-[11px] uppercase tracking-wider font-sans font-medium transition-colors disabled:opacity-60"
+                              >
+                                ✕ Reject
+                              </button>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setPrintOrder(order)}
+                            className="px-3.5 py-1.5 border border-brand-border bg-[#FAF8F5] hover:border-brand-black text-brand-black text-[11px] uppercase tracking-wider font-sans font-medium transition-colors"
+                          >
+                            🖨 Print Memo
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Print-Only Courier Slip / Invoice */}
+      <PrintOrderMemo order={printOrder} />
+    </>
   );
 }
