@@ -29,9 +29,15 @@ export async function ensureTables() {
       fabric        TEXT,
       description   TEXT,
       image_url     TEXT,
+      media_type    TEXT DEFAULT 'image',
       in_stock      BOOLEAN DEFAULT TRUE,
       created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
+  `;
+
+  await sql`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS media_type TEXT DEFAULT 'image'
   `;
 
   await sql`

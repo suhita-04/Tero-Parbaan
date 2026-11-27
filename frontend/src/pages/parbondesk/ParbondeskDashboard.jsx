@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
+import ProductMedia from '../../components/product/ProductMedia';
 
 // ─── Status Badge ────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
@@ -16,25 +17,109 @@ function StatusBadge({ status }) {
   );
 }
 
+// ─── Cloudinary Direct Upload Helper ──────────────────────────────────────────
+function uploadToCloudinary(file, onProgress) {
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+  if (!cloudName || !uploadPreset) {
+    return Promise.reject(
+      new Error('Cloudinary is not configured. Check VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.')
+    );
+  }
+
+  return new Promise((resolve, reject) => {
+    const url = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', uploadPreset);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      try {
+        const res = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300 && res.secure_url) {
+          resolve({
+            secure_url: res.secure_url,
+            media_type: res.resource_type === 'video' ? 'video' : 'image',
+          });
+        } else {
+          reject(new Error(res.error?.message || `Upload failed (${xhr.status})`));
+        }
+      } catch {
+        reject(new Error('Invalid response from Cloudinary'));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error while uploading media'));
+    xhr.send(formData);
+  });
+}
+
 // ─── Product Form ─────────────────────────────────────────────────────────────
 function ProductForm({ initial, onSave, onCancel }) {
   const CATEGORIES = ['Saree', 'Blouse', 'Kurti', 'Stole'];
   const SAREE_SUBS = ['Shuti', 'Handloom', 'Muslin', 'Silk'];
+  const fileInputRef = useRef(null);
 
   const empty = {
     id: null, title_en: '', title_bn: '', category: 'Saree',
     subcategory: '', price: '', fabric: '', description: '',
-    image_url: '', in_stock: true,
+    image_url: '', media_type: 'image', in_stock: true,
   };
 
-  const [form, setForm] = useState(initial || empty);
+  const [form, setForm] = useState(
+    initial
+      ? { ...empty, ...initial, media_type: initial.media_type === 'video' ? 'video' : 'image' }
+      : empty
+  );
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
   const [err, setErr] = useState('');
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  const handleFileUpload = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+      setErr('Please choose an image or video file.');
+      return;
+    }
+
+    setErr('');
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const { secure_url, media_type } = await uploadToCloudinary(file, setUploadProgress);
+      setForm(f => ({ ...f, image_url: secure_url, media_type }));
+    } catch (uploadErr) {
+      setErr(uploadErr.message || 'Media upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) handleFileUpload(file);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (uploading) return;
     setErr('');
     setSaving(true);
     try {
@@ -88,17 +173,119 @@ function ProductForm({ initial, onSave, onCancel }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="label">Fabric / Quality</label>
-          <input value={form.fabric} onChange={e => set('fabric', e.target.value)}
-            placeholder="e.g. 100% Muslin Cotton" className="inp" />
-        </div>
-        <div>
-          <label className="label">Image URL</label>
-          <input value={form.image_url} onChange={e => set('image_url', e.target.value)}
-            placeholder="https://..." className="inp" />
-        </div>
+      <div>
+        <label className="label">Fabric / Quality</label>
+        <input value={form.fabric} onChange={e => set('fabric', e.target.value)}
+          placeholder="e.g. 100% Muslin Cotton" className="inp" />
+      </div>
+
+      {/* Direct Photo / Video Upload via Cloudinary */}
+      <div>
+        <label className="label">Product Photo or Video (Upload from Gallery / Computer)</label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          onChange={e => {
+            const file = e.target.files?.[0];
+            if (file) handleFileUpload(file);
+            e.target.value = '';
+          }}
+          className="hidden"
+        />
+
+        {!form.image_url || uploading ? (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => !uploading && fileInputRef.current?.click()}
+            onKeyDown={e => {
+              if ((e.key === 'Enter' || e.key === ' ') && !uploading) {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            className={`border-2 border-dashed rounded-sm p-6 text-center transition-colors cursor-pointer ${
+              isDragging
+                ? 'border-brand-crimson bg-red-50/50'
+                : 'border-brand-border bg-[#FAF8F5] hover:border-brand-crimson/60'
+            } ${uploading ? 'pointer-events-none opacity-85' : ''}`}
+          >
+            {uploading ? (
+              <div className="space-y-2.5 max-w-xs mx-auto">
+                <div className="flex items-center justify-center gap-2 text-xs font-medium text-brand-crimson">
+                  <span className="w-3.5 h-3.5 border-2 border-brand-crimson border-t-transparent rounded-full animate-spin" />
+                  <span>Uploading to Cloudinary... {uploadProgress}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-brand-border rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-brand-crimson transition-all duration-200"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-brand-black">
+                  Click to choose photo/video from device gallery or drag &amp; drop here
+                </p>
+                <p className="text-[11px] text-brand-stone">
+                  Supports JPG, PNG, WebP, MP4, MOV &bull; Uploads directly to Cloudinary
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="bg-[#FAF8F5] border border-brand-border p-3 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="w-28 h-36 bg-white border border-brand-border overflow-hidden flex-shrink-0">
+              {form.media_type === 'video' ? (
+                <video
+                  src={form.image_url}
+                  controls
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <img
+                  src={form.image_url}
+                  alt={form.title_en || 'Product preview'}
+                  className="w-full h-full object-cover"
+                />
+              )}
+            </div>
+
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-semibold">
+                  {form.media_type === 'video' ? 'Video Ready' : 'Photo Ready'}
+                </span>
+              </div>
+              <p className="text-[11px] text-brand-stone break-all line-clamp-2">
+                Uploaded and ready to save with this product.
+              </p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3 py-1.5 border border-brand-border bg-white text-brand-black hover:border-brand-crimson hover:text-brand-crimson text-[11px] uppercase tracking-wider transition-colors"
+                >
+                  Replace Media
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, image_url: '', media_type: 'image' }))}
+                  className="px-3 py-1.5 border border-red-200 bg-white text-red-600 hover:bg-red-50 text-[11px] uppercase tracking-wider transition-colors"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div>
@@ -114,9 +301,9 @@ function ProductForm({ initial, onSave, onCancel }) {
       </div>
 
       <div className="flex gap-3 pt-2">
-        <button type="submit" disabled={saving}
+        <button type="submit" disabled={saving || uploading}
           className="flex-1 py-2.5 bg-brand-crimson hover:bg-brand-crimson-hover disabled:opacity-60 text-white text-xs uppercase tracking-wider font-medium transition-colors">
-          {saving ? 'Saving...' : form.id ? 'Update Product' : 'Add Product'}
+          {uploading ? 'Wait for upload...' : saving ? 'Saving...' : form.id ? 'Update Product' : 'Add Product'}
         </button>
         <button type="button" onClick={onCancel}
           className="px-5 py-2.5 border border-brand-border text-brand-stone hover:text-brand-black hover:border-brand-black text-xs uppercase tracking-wider transition-colors">
@@ -310,6 +497,7 @@ export default function ParbondeskDashboard() {
                   .label { display:block; font-size:0.65rem; text-transform:uppercase; letter-spacing:0.1em; color:#1A1A1A; font-weight:600; margin-bottom:0.375rem; }`}
                 </style>
                 <ProductForm
+                  key={editProduct?.id || 'new'}
                   initial={editProduct}
                   onSave={handleSaveProduct}
                   onCancel={() => { setShowForm(false); setEditProduct(null); }}
@@ -339,7 +527,7 @@ export default function ParbondeskDashboard() {
                 <table className="w-full text-xs font-sans">
                   <thead>
                     <tr className="bg-[#FAF8F5] border-b border-brand-border">
-                      {['Image', 'Title', 'Category', 'Price ৳', 'Stock', 'Actions'].map(h => (
+                      {['Media', 'Title', 'Category', 'Price ৳', 'Stock', 'Actions'].map(h => (
                         <th key={h} className="px-4 py-3 text-left text-[10px] uppercase tracking-wider text-brand-stone font-semibold">{h}</th>
                       ))}
                     </tr>
@@ -349,8 +537,8 @@ export default function ParbondeskDashboard() {
                       <tr key={p.id} className="hover:bg-[#FAF8F5]/60 transition-colors">
                         <td className="px-4 py-3">
                           {p.image_url
-                            ? <img src={p.image_url} alt={p.title_en} className="w-10 h-12 object-cover border border-brand-border" />
-                            : <div className="w-10 h-12 bg-brand-canvas border border-brand-border flex items-center justify-center text-[10px] text-brand-stone">No img</div>
+                            ? <ProductMedia item={p} alt={p.title_en} className="w-10 h-12 object-cover border border-brand-border" />
+                            : <div className="w-10 h-12 bg-brand-canvas border border-brand-border flex items-center justify-center text-[10px] text-brand-stone">No media</div>
                           }
                         </td>
                         <td className="px-4 py-3">

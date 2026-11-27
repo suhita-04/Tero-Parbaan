@@ -37,14 +37,15 @@ export default async function handler(req, res) {
 
     // POST — create new product
     if (req.method === 'POST') {
-      const { title_en, title_bn, category, subcategory, price, fabric, description, image_url, in_stock } = req.body || {};
+      const { title_en, title_bn, category, subcategory, price, fabric, description, image_url, media_type, in_stock } = req.body || {};
       if (!title_en || !category || !price) {
         return res.status(400).json({ ok: false, error: 'title_en, category, and price are required' });
       }
+      const normalizedMediaType = media_type === 'video' ? 'video' : 'image';
       const [product] = await sql`
-        INSERT INTO products (title_en, title_bn, category, subcategory, price, fabric, description, image_url, in_stock)
+        INSERT INTO products (title_en, title_bn, category, subcategory, price, fabric, description, image_url, media_type, in_stock)
         VALUES (${title_en}, ${title_bn || null}, ${category}, ${subcategory || null}, ${Number(price)},
-                ${fabric || null}, ${description || null}, ${image_url || null}, ${in_stock !== false})
+                ${fabric || null}, ${description || null}, ${image_url || null}, ${normalizedMediaType}, ${in_stock !== false})
         RETURNING *
       `;
       return res.status(201).json({ ok: true, product });
@@ -52,8 +53,9 @@ export default async function handler(req, res) {
 
     // PUT — update product
     if (req.method === 'PUT') {
-      const { id, title_en, title_bn, category, subcategory, price, fabric, description, image_url, in_stock } = req.body || {};
+      const { id, title_en, title_bn, category, subcategory, price, fabric, description, image_url, media_type, in_stock } = req.body || {};
       if (!id) return res.status(400).json({ ok: false, error: 'id is required' });
+      const normalizedMediaType = media_type === 'video' ? 'video' : 'image';
       const [product] = await sql`
         UPDATE products SET
           title_en = ${title_en},
@@ -64,6 +66,7 @@ export default async function handler(req, res) {
           fabric = ${fabric || null},
           description = ${description || null},
           image_url = ${image_url || null},
+          media_type = ${normalizedMediaType},
           in_stock = ${in_stock !== false}
         WHERE id = ${Number(id)}
         RETURNING *

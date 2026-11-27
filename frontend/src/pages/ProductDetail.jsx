@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { MOCK_PRODUCTS } from '../data/mockProducts';
 import { useCart } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
+import ProductMedia from '../components/product/ProductMedia';
+import { normalizeApiProduct, isVideoMedia } from '../utils/products';
 
 const BLOUSE_KURTI_SIZES = ['34', '36', '38', '40', '42'];
 
@@ -11,8 +13,42 @@ export default function ProductDetail() {
   const { addToCart } = useCart();
   const { t, formatPrice, getLocalizedField, language } = useLanguage();
 
-  // Find product from mock products or default to first
-  const product = MOCK_PRODUCTS.find((p) => p.id === Number(id)) || MOCK_PRODUCTS[0];
+  const isDbRoute = String(id).startsWith('db-');
+  const mockMatch = MOCK_PRODUCTS.find((p) => String(p.id) === String(id));
+  const [dbProduct, setDbProduct] = useState(null);
+  const [loadingDb, setLoadingDb] = useState(isDbRoute);
+
+  useEffect(() => {
+    if (!isDbRoute) {
+      setDbProduct(null);
+      setLoadingDb(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingDb(true);
+    fetch('/api/products')
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.ok && Array.isArray(data.products)) {
+          const found = data.products.find((p) => `db-${p.id}` === String(id));
+          setDbProduct(found ? normalizeApiProduct(found) : null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setDbProduct(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDb(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isDbRoute]);
+
+  const product = dbProduct || mockMatch || MOCK_PRODUCTS[0];
 
   const categoryLower = product.category?.toLowerCase() || '';
   const isBlouseOrKurti = categoryLower === 'blouse' || categoryLower === 'kurti';
@@ -22,6 +58,18 @@ export default function ProductDetail() {
   // State for conditional sizing
   const [selectedSize, setSelectedSize] = useState(isBlouseOrKurti ? '38' : 'Free Size');
   const [addedAnimation, setAddedAnimation] = useState(false);
+
+  useEffect(() => {
+    setSelectedSize(isBlouseOrKurti ? '38' : 'Free Size');
+  }, [isBlouseOrKurti, product.id]);
+
+  if (loadingDb) {
+    return (
+      <div className="bg-brand-canvas min-h-screen flex items-center justify-center py-20">
+        <p className="font-serif text-lg text-brand-stone">Loading...</p>
+      </div>
+    );
+  }
 
   // Bilingual title helper
   const getBilingualTitle = () => {
@@ -89,16 +137,21 @@ export default function ProductDetail() {
         {/* Product Layout Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-start">
           
-          {/* Large 3:4 Product Image Column */}
+          {/* Large 3:4 Product Media Column */}
           <div className="lg:col-span-7 bg-white border border-brand-border p-3 sm:p-5 shadow-gold-subtle relative">
             <div className="aspect-[3/4] relative overflow-hidden bg-brand-canvas group">
-              <img
-                src={product.image}
+              <ProductMedia
+                item={product}
+                controls={isVideoMedia(product)}
                 alt={getBilingualTitle()}
-                className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+                className={`w-full h-full object-cover object-center ${
+                  isVideoMedia(product)
+                    ? ''
+                    : 'transition-transform duration-700 ease-out group-hover:scale-[1.02]'
+                }`}
               />
               {localizedTag && (
-                <span className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm text-[10px] uppercase tracking-widest text-brand-crimson px-3 py-1 font-sans border border-brand-border-gold">
+                <span className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm text-[10px] uppercase tracking-widest text-brand-crimson px-3 py-1 font-sans border border-brand-border-gold pointer-events-none">
                   {localizedTag}
                 </span>
               )}

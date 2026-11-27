@@ -3,23 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import ProductGrid from '../components/product/ProductGrid';
 import { MOCK_PRODUCTS } from '../data/mockProducts';
 import { useLanguage, toBengaliNumerals } from '../context/LanguageContext';
-
-// Normalize a DB product row to the shape expected by the existing ProductGrid/ProductCard
-function normalizeApiProduct(p) {
-  return {
-    id: `db-${p.id}`,
-    _dbId: p.id,
-    title: { en: p.title_en, bn: p.title_bn || p.title_en },
-    category: p.category,
-    subcategory: p.subcategory || '',
-    price: p.price,
-    fabric: { en: p.fabric || '', bn: p.fabric || '' },
-    description: { en: p.description || '', bn: p.description || '' },
-    image: p.image_url || '',
-    inStock: p.in_stock,
-    isFromDb: true,
-  };
-}
+import { normalizeApiProduct } from '../utils/products';
 
 export default function Shop() {
   const [searchParams] = useSearchParams();

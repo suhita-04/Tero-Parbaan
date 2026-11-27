@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useLanguage, toBengaliNumerals } from '../context/LanguageContext';
+import ProductMedia from '../components/product/ProductMedia';
 
 export default function Cart() {
   const { cartItems, removeFromCart, updateQuantity, totalPrice, totalCount } = useCart();
@@ -65,8 +66,8 @@ export default function Cart() {
                     key={`${item.id}-${item.size}-${item.color}`}
                     className="bg-white border border-brand-border p-4 sm:p-6 flex gap-4 sm:gap-6 items-center shadow-gold-subtle hover:border-brand-border-gold transition-colors"
                   >
-                    <img
-                      src={item.image}
+                    <ProductMedia
+                      item={item}
                       alt={itemTitle}
                       className="w-20 h-24 sm:w-24 sm:h-28 object-cover object-center bg-brand-ivory-warm flex-shrink-0"
                     />

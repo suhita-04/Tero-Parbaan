@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useLanguage, toBengaliNumerals } from '../context/LanguageContext';
+import ProductMedia from '../components/product/ProductMedia';
 
 export default function Checkout() {
   const { cartItems, totalPrice, clearCart } = useCart();
@@ -354,8 +355,8 @@ export default function Checkout() {
               <div className="divide-y divide-brand-border/60 max-h-[360px] overflow-y-auto pr-1">
                 {activeItems.map((item, idx) => (
                   <div key={idx} className="py-3.5 flex items-center justify-between gap-4">
-                    <img
-                      src={item.image}
+                    <ProductMedia
+                      item={item}
                       alt={getLocalizedField(item.title)}
                       className="w-14 h-18 object-cover bg-brand-ivory-warm border border-brand-border flex-shrink-0"
                     />

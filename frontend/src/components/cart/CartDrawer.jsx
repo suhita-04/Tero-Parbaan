@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useLanguage, toBengaliNumerals } from '../../context/LanguageContext';
+import ProductMedia from '../product/ProductMedia';
 
 export default function CartDrawer() {
   const {
@@ -105,8 +106,8 @@ export default function CartDrawer() {
                   className="flex gap-3 sm:gap-4 p-3 sm:p-4 bg-white border border-brand-border transition-colors hover:border-brand-border-gold"
                 >
                   {/* Item Thumbnail */}
-                  <img
-                    src={item.image}
+                  <ProductMedia
+                    item={item}
                     alt={itemTitle}
                     className="w-16 h-20 sm:w-20 sm:h-24 object-cover object-center bg-brand-ivory-warm flex-shrink-0"
                   />

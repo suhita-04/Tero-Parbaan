@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
+import ProductMedia from './ProductMedia';
+import { isVideoMedia } from '../../utils/products';
 
 export default function ProductCard({ product }) {
   const { t, formatPrice, language } = useLanguage();
@@ -29,19 +31,25 @@ export default function ProductCard({ product }) {
       to={`/product/${product.id}`}
       className="group block text-center transition-all duration-300"
     >
-      {/* Borderless 3:4 Portrait Image Container with Smooth Zoom Hover */}
+      {/* Borderless 3:4 Portrait Media Container with Smooth Zoom Hover */}
       <div className="relative aspect-[3/4] overflow-hidden bg-brand-canvas mb-4 shadow-gallery group-hover:shadow-lg transition-shadow duration-500">
-        <img
-          src={product.image}
+        <ProductMedia
+          item={product}
           alt={getBilingualTitle()}
           className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-700 ease-out"
           loading="lazy"
         />
-        
+
         {/* Subtle Minimalist Category Badge */}
         <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-[8.5px] uppercase tracking-[0.2em] text-brand-black px-2 py-0.5 font-sans border border-brand-border">
           {subcategoryLabel ? `${categoryLabel} • ${subcategoryLabel}` : categoryLabel}
         </span>
+
+        {isVideoMedia(product) && (
+          <span className="absolute top-3 right-3 bg-brand-black/75 text-white text-[8.5px] uppercase tracking-[0.16em] px-2 py-0.5 font-sans">
+            ▶ Video
+          </span>
+        )}
       </div>
 
       {/* Center-Aligned Minimalist Details Below Image */}
