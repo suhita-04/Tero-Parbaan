@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
+import { useStoreSettings } from '../../context/StoreSettingsContext';
 import ProductMedia from '../../components/product/ProductMedia';
 
 const ORDER_STAGES = ['Pending', 'Confirmed', 'Shipped', 'Delivered'];
@@ -235,13 +236,18 @@ function ProductForm({ initial, onSave, onCancel }) {
 
   const empty = {
     id: null, title_en: '', title_bn: '', category: 'Saree',
-    subcategory: '', price: '', fabric: '', description: '',
+    subcategory: '', price: '', discount_price: '', fabric: '', description: '',
     image_url: '', media_type: 'image', in_stock: true,
   };
 
   const [form, setForm] = useState(
     initial
-      ? { ...empty, ...initial, media_type: initial.media_type === 'video' ? 'video' : 'image' }
+      ? {
+          ...empty,
+          ...initial,
+          discount_price: initial.discount_price ?? '',
+          media_type: initial.media_type === 'video' ? 'video' : 'image',
+        }
       : empty
   );
   const [saving, setSaving] = useState(false);
@@ -313,7 +319,7 @@ function ProductForm({ initial, onSave, onCancel }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 ${isSaree ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4`}>
         <div>
           <label className="label">Category *</label>
           <select required value={form.category} onChange={e => set('category', e.target.value)} className="inp">
@@ -333,6 +339,11 @@ function ProductForm({ initial, onSave, onCancel }) {
           <label className="label">Price ৳ *</label>
           <input required type="number" min="0" value={form.price} onChange={e => set('price', e.target.value)}
             placeholder="e.g. 24500" className="inp" />
+        </div>
+        <div>
+          <label className="label">Offer / Discount Price ৳</label>
+          <input type="number" min="0" value={form.discount_price} onChange={e => set('discount_price', e.target.value)}
+            placeholder="Optional offer price" className="inp" />
         </div>
       </div>
 
@@ -488,6 +499,7 @@ export default function ParbondeskDashboard() {
   const [productsErr, setProductsErr] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
+  const [togglingStockId, setTogglingStockId] = useState(null);
 
   // Orders state
   const [orders, setOrders] = useState([]);
@@ -495,6 +507,19 @@ export default function ParbondeskDashboard() {
   const [ordersErr, setOrdersErr] = useState('');
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const [printOrder, setPrintOrder] = useState(null);
+
+  // Store Settings state
+  const { setStoreSettings } = useStoreSettings();
+  const [settingsForm, setSettingsForm] = useState({
+    dhaka_delivery: 80,
+    outside_dhaka_delivery: 150,
+    notice_text: '',
+    notice_active: false,
+  });
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState('');
+  const [settingsErr, setSettingsErr] = useState('');
 
   const { adminToken, clearAdminToken } = useAdminAuth();
   const token = adminToken;
@@ -525,12 +550,17 @@ export default function ParbondeskDashboard() {
 
   const handleSaveProduct = async (form) => {
     const isEdit = !!form.id;
+    const discountNum =
+      form.discount_price !== '' && form.discount_price !== null && form.discount_price !== undefined
+        ? Number(form.discount_price)
+        : null;
     const res = await fetch('/api/products', {
       method: isEdit ? 'PUT' : 'POST',
       headers: authHeader,
       body: JSON.stringify({
         ...form,
         price: Number(form.price),
+        discount_price: discountNum && discountNum > 0 ? discountNum : null,
       }),
     });
     const data = await res.json();
@@ -538,6 +568,31 @@ export default function ParbondeskDashboard() {
     setShowForm(false);
     setEditProduct(null);
     fetchProducts();
+  };
+
+  const handleToggleStock = async (product) => {
+    setTogglingStockId(product.id);
+    const nextStock = !product.in_stock;
+    try {
+      const res = await fetch('/api/products', {
+        method: 'PUT',
+        headers: authHeader,
+        body: JSON.stringify({
+          ...product,
+          in_stock: nextStock,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok && data.product) {
+        setProducts(prev => prev.map(p => (p.id === product.id ? data.product : p)));
+      } else {
+        alert(data.error || 'Failed to update stock status');
+      }
+    } catch {
+      alert('Network error updating stock status');
+    } finally {
+      setTogglingStockId(null);
+    }
   };
 
   const handleDeleteProduct = async (id, titleEn) => {
@@ -550,6 +605,73 @@ export default function ParbondeskDashboard() {
     const data = await res.json();
     if (data.ok) fetchProducts();
     else alert(data.error || 'Delete failed');
+  };
+
+  // ── Settings API ──
+  const fetchSettings = useCallback(async () => {
+    setSettingsLoading(true);
+    setSettingsErr('');
+    try {
+      const res = await fetch('/api/settings');
+      const data = await res.json();
+      if (data.ok && data.settings) {
+        const next = {
+          dhaka_delivery: Number(data.settings.dhaka_delivery ?? 80),
+          outside_dhaka_delivery: Number(data.settings.outside_dhaka_delivery ?? 150),
+          notice_text: data.settings.notice_text || '',
+          notice_active: Boolean(data.settings.notice_active),
+        };
+        setSettingsForm(next);
+        setStoreSettings(next);
+      } else {
+        setSettingsErr(data.error || 'Failed to load settings');
+      }
+    } catch {
+      setSettingsErr('Network error loading settings');
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, [setStoreSettings]);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+  const handleSaveSettings = async (e) => {
+    e.preventDefault();
+    setSettingsSaving(true);
+    setSettingsMsg('');
+    setSettingsErr('');
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: authHeader,
+        body: JSON.stringify({
+          dhaka_delivery: Number(settingsForm.dhaka_delivery || 0),
+          outside_dhaka_delivery: Number(settingsForm.outside_dhaka_delivery || 0),
+          notice_text: settingsForm.notice_text,
+          notice_active: Boolean(settingsForm.notice_active),
+        }),
+      });
+      const data = await res.json();
+      if (data.ok && data.settings) {
+        const next = {
+          dhaka_delivery: Number(data.settings.dhaka_delivery),
+          outside_dhaka_delivery: Number(data.settings.outside_dhaka_delivery),
+          notice_text: data.settings.notice_text || '',
+          notice_active: Boolean(data.settings.notice_active),
+        };
+        setSettingsForm(next);
+        setStoreSettings(next);
+        setSettingsMsg('Store settings saved and published live.');
+      } else {
+        setSettingsErr(data.error || 'Failed to save settings');
+      }
+    } catch {
+      setSettingsErr('Network error saving settings');
+    } finally {
+      setSettingsSaving(false);
+    }
   };
 
   // ── Orders API ──
@@ -722,15 +844,19 @@ export default function ParbondeskDashboard() {
           </section>
 
           {/* Tab Switcher */}
-          <div className="flex border-b border-brand-border mb-6 gap-1">
-            {['products', 'orders'].map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab)}
-                className={`px-6 py-2.5 text-xs uppercase tracking-wider font-sans border-b-2 transition-all ${
-                  activeTab === tab
+          <div className="flex border-b border-brand-border mb-6 gap-1 overflow-x-auto no-scrollbar">
+            {[
+              { id: 'products', label: '📦 Products' },
+              { id: 'orders', label: `📋 Orders (${orders.length})` },
+              { id: 'settings', label: '⚙️ Settings' },
+            ].map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className={`px-6 py-2.5 text-xs uppercase tracking-wider font-sans border-b-2 whitespace-nowrap transition-all ${
+                  activeTab === tab.id
                     ? 'border-brand-crimson text-brand-crimson font-semibold'
                     : 'border-transparent text-brand-stone hover:text-brand-black'
                 }`}>
-                {tab === 'products' ? '📦 Products' : `📋 Orders (${orders.length})`}
+                {tab.label}
               </button>
             ))}
           </div>
@@ -810,11 +936,45 @@ export default function ParbondeskDashboard() {
                           <td className="px-4 py-3 text-brand-stone">
                             {p.category}{p.subcategory ? ` › ${p.subcategory}` : ''}
                           </td>
-                          <td className="px-4 py-3 font-semibold text-brand-black">৳{p.price?.toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-3 font-semibold text-brand-black">
+                            {p.discount_price && Number(p.discount_price) > 0 && Number(p.discount_price) < Number(p.price) ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-brand-crimson">৳{Number(p.discount_price).toLocaleString('en-IN')}</span>
+                                <span className="text-[11px] text-brand-stone line-through font-normal">
+                                  ৳{Number(p.price).toLocaleString('en-IN')}
+                                </span>
+                              </div>
+                            ) : (
+                              <span>৳{p.price?.toLocaleString('en-IN')}</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3">
-                            <span className={`px-2 py-0.5 text-[10px] border rounded-full ${p.in_stock ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
-                              {p.in_stock ? 'In Stock' : 'Out'}
-                            </span>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={Boolean(p.in_stock)}
+                              disabled={togglingStockId === p.id}
+                              onClick={() => handleToggleStock(p)}
+                              title="Click to toggle stock status"
+                              className="inline-flex items-center gap-2 disabled:opacity-60 cursor-pointer group"
+                            >
+                              <span
+                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                                  p.in_stock ? 'bg-emerald-600' : 'bg-stone-300'
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                    p.in_stock ? 'translate-x-4' : 'translate-x-1'
+                                  }`}
+                                />
+                              </span>
+                              <span className={`text-[10px] uppercase tracking-wider font-medium ${
+                                p.in_stock ? 'text-emerald-700' : 'text-red-600'
+                              }`}>
+                                {togglingStockId === p.id ? 'Saving...' : p.in_stock ? 'In Stock' : 'Out of Stock'}
+                              </span>
+                            </button>
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
@@ -989,6 +1149,114 @@ export default function ParbondeskDashboard() {
                     );
                   })}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── SETTINGS TAB ─── */}
+          {activeTab === 'settings' && (
+            <div className="max-w-2xl space-y-5">
+              <div>
+                <h2 className="font-serif text-xl text-brand-black">Store Settings</h2>
+                <p className="text-xs text-brand-stone font-sans mt-0.5">
+                  Configure live delivery charges and optional storefront announcement banner
+                </p>
+              </div>
+
+              {settingsErr && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-sans">{settingsErr}</div>
+              )}
+              {settingsMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-sans">{settingsMsg}</div>
+              )}
+
+              {settingsLoading ? (
+                <div className="text-center py-12 text-brand-stone font-sans text-sm">Loading settings...</div>
+              ) : (
+                <form onSubmit={handleSaveSettings} className="bg-white border border-brand-border p-5 sm:p-6 shadow-sm space-y-5 text-sm font-sans">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-wider text-brand-black font-semibold mb-1.5">
+                        Dhaka Delivery Charge (৳)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={settingsForm.dhaka_delivery}
+                        onChange={(e) => setSettingsForm(s => ({ ...s, dhaka_delivery: e.target.value }))}
+                        className="w-full px-3 py-2 bg-[#FAF8F5] border border-brand-border text-xs text-brand-black focus:outline-none focus:border-brand-crimson"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-wider text-brand-black font-semibold mb-1.5">
+                        Outside Dhaka Delivery Charge (৳)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={settingsForm.outside_dhaka_delivery}
+                        onChange={(e) => setSettingsForm(s => ({ ...s, outside_dhaka_delivery: e.target.value }))}
+                        className="w-full px-3 py-2 bg-[#FAF8F5] border border-brand-border text-xs text-brand-black focus:outline-none focus:border-brand-crimson"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="border-t border-brand-border pt-4 space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <label className="block text-[10px] uppercase tracking-wider text-brand-black font-semibold">
+                          Storefront Notice Banner
+                        </label>
+                        <p className="text-[11px] text-brand-stone mt-0.5">
+                          Show a crimson announcement strip at the very top of the storefront
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={settingsForm.notice_active}
+                        onClick={() => setSettingsForm(s => ({ ...s, notice_active: !s.notice_active }))}
+                        className="inline-flex items-center gap-2 cursor-pointer flex-shrink-0"
+                      >
+                        <span
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                            settingsForm.notice_active ? 'bg-brand-crimson' : 'bg-stone-300'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                              settingsForm.notice_active ? 'translate-x-4' : 'translate-x-1'
+                            }`}
+                          />
+                        </span>
+                        <span className="text-[11px] uppercase tracking-wider font-medium text-brand-black">
+                          {settingsForm.notice_active ? 'Active' : 'Off'}
+                        </span>
+                      </button>
+                    </div>
+
+                    <textarea
+                      rows={2}
+                      value={settingsForm.notice_text}
+                      onChange={(e) => setSettingsForm(s => ({ ...s, notice_text: e.target.value }))}
+                      placeholder="e.g. Eid Special: Complimentary Dhaka delivery on orders above ৳5,000!"
+                      className="w-full px-3 py-2 bg-[#FAF8F5] border border-brand-border text-xs text-brand-black focus:outline-none focus:border-brand-crimson resize-none"
+                    />
+                  </div>
+
+                  <div className="pt-1">
+                    <button
+                      type="submit"
+                      disabled={settingsSaving}
+                      className="px-6 py-2.5 bg-brand-crimson hover:bg-brand-crimson-hover disabled:opacity-60 text-white text-xs uppercase tracking-wider font-medium transition-colors"
+                    >
+                      {settingsSaving ? 'Saving...' : 'Save Store Settings'}
+                    </button>
+                  </div>
+                </form>
               )}
             </div>
           )}

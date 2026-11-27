@@ -4,7 +4,7 @@ import { MOCK_PRODUCTS } from '../data/mockProducts';
 import { useCart } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
 import ProductMedia from '../components/product/ProductMedia';
-import { normalizeApiProduct, isVideoMedia } from '../utils/products';
+import { normalizeApiProduct, isVideoMedia, hasDiscount, getEffectivePrice, isOutOfStock } from '../utils/products';
 
 const BLOUSE_KURTI_SIZES = ['34', '36', '38', '40', '42'];
 
@@ -88,11 +88,15 @@ export default function ProductDetail() {
   const localizedWeave = getLocalizedField(product.weave, '');
   const localizedCare = getLocalizedField(product.care, '');
   const localizedTag = getLocalizedField(product.tag, product.category);
+  const discounted = hasDiscount(product);
+  const effectivePrice = getEffectivePrice(product);
+  const outOfStock = isOutOfStock(product);
 
   const categoryLabel = t(`cat_${categoryLower}`);
   const subcategoryLabel = product.subcategory ? t(`sub_${product.subcategory.toLowerCase()}`) : null;
 
   const handleAddToCart = () => {
+    if (outOfStock) return;
     const sizeToPass = isBlouseOrKurti ? selectedSize : t('pdp_free_size');
     addToCart(product, {
       size: sizeToPass,
@@ -155,6 +159,11 @@ export default function ProductDetail() {
                   {localizedTag}
                 </span>
               )}
+              {outOfStock && (
+                <span className="absolute top-4 right-4 bg-brand-black text-white text-[10px] uppercase tracking-widest px-3 py-1 font-sans font-semibold pointer-events-none">
+                  {language === 'bn' ? 'স্টক শেষ' : 'Out of Stock'}
+                </span>
+              )}
             </div>
           </div>
 
@@ -171,12 +180,25 @@ export default function ProductDetail() {
                 {getBilingualTitle()}
               </h1>
 
-              <div className="flex items-baseline space-x-3">
-                <p className="font-sans text-2xl sm:text-3xl text-brand-crimson font-bold">
-                  {formatPrice(product.price)}
-                </p>
+              <div className="flex items-baseline flex-wrap gap-x-3 gap-y-1">
+                {discounted ? (
+                  <>
+                    <p className="font-sans text-2xl sm:text-3xl text-brand-crimson font-bold">
+                      {formatPrice(effectivePrice)}
+                    </p>
+                    <p className="font-sans text-base sm:text-lg text-brand-stone line-through">
+                      {formatPrice(product.price)}
+                    </p>
+                  </>
+                ) : (
+                  <p className="font-sans text-2xl sm:text-3xl text-brand-crimson font-bold">
+                    {formatPrice(product.price)}
+                  </p>
+                )}
                 <span className="text-xs uppercase tracking-wider text-brand-stone font-sans">
-                  (COD Available)
+                  {outOfStock
+                    ? (language === 'bn' ? '(বর্তমানে স্টকে নেই)' : '(Currently Out of Stock)')
+                    : '(COD Available)'}
                 </span>
               </div>
             </div>
@@ -251,14 +273,18 @@ export default function ProductDetail() {
               <button
                 type="button"
                 onClick={handleAddToCart}
-                disabled={addedAnimation}
+                disabled={outOfStock || addedAnimation}
                 className={`w-full py-4 text-xs font-sans font-medium uppercase tracking-[0.18em] transition-all duration-300 flex items-center justify-center space-x-2 border ${
-                  addedAnimation
-                    ? 'bg-emerald-800 border-emerald-800 text-white'
-                    : 'bg-brand-crimson hover:bg-brand-crimson-hover border-brand-crimson text-white hover:-translate-y-0.5 active:translate-y-0 shadow-sm'
+                  outOfStock
+                    ? 'bg-stone-200 border-stone-300 text-stone-500 cursor-not-allowed'
+                    : addedAnimation
+                      ? 'bg-emerald-800 border-emerald-800 text-white'
+                      : 'bg-brand-crimson hover:bg-brand-crimson-hover border-brand-crimson text-white hover:-translate-y-0.5 active:translate-y-0 shadow-sm'
                 }`}
               >
-                {addedAnimation ? (
+                {outOfStock ? (
+                  <span>{language === 'bn' ? 'স্টক শেষ' : 'Out of Stock'}</span>
+                ) : addedAnimation ? (
                   <span>{t('pdp_added_success')}</span>
                 ) : (
                   <>

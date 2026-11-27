@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import ProductMedia from './ProductMedia';
-import { isVideoMedia } from '../../utils/products';
+import { isVideoMedia, hasDiscount, getEffectivePrice, isOutOfStock } from '../../utils/products';
 
 export default function ProductCard({ product }) {
   const { t, formatPrice, language } = useLanguage();
@@ -10,6 +10,9 @@ export default function ProductCard({ product }) {
   // Category and Subcategory representation
   const categoryLabel = t(`cat_${product.category.toLowerCase()}`);
   const subcategoryLabel = product.subcategory ? t(`sub_${product.subcategory.toLowerCase()}`) : null;
+  const discounted = hasDiscount(product);
+  const effectivePrice = getEffectivePrice(product);
+  const outOfStock = isOutOfStock(product);
 
   // Render bilingual title format: "রক্তজবা — Roktojoba"
   const getBilingualTitle = () => {
@@ -36,7 +39,9 @@ export default function ProductCard({ product }) {
         <ProductMedia
           item={product}
           alt={getBilingualTitle()}
-          className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-700 ease-out"
+          className={`w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-700 ease-out ${
+            outOfStock ? 'opacity-65 grayscale-[25%]' : ''
+          }`}
           loading="lazy"
         />
 
@@ -45,11 +50,19 @@ export default function ProductCard({ product }) {
           {subcategoryLabel ? `${categoryLabel} • ${subcategoryLabel}` : categoryLabel}
         </span>
 
-        {isVideoMedia(product) && (
+        {outOfStock ? (
+          <span className="absolute top-3 right-3 bg-brand-black/90 text-white text-[9px] uppercase tracking-[0.18em] px-2.5 py-0.5 font-sans font-semibold">
+            {language === 'bn' ? 'স্টক শেষ' : 'Out of Stock'}
+          </span>
+        ) : discounted ? (
+          <span className="absolute top-3 right-3 bg-brand-crimson text-white text-[9px] uppercase tracking-[0.18em] px-2.5 py-0.5 font-sans font-semibold">
+            {language === 'bn' ? 'অফার' : 'Offer'}
+          </span>
+        ) : isVideoMedia(product) ? (
           <span className="absolute top-3 right-3 bg-brand-black/75 text-white text-[8.5px] uppercase tracking-[0.16em] px-2 py-0.5 font-sans">
             ▶ Video
           </span>
-        )}
+        ) : null}
       </div>
 
       {/* Center-Aligned Minimalist Details Below Image */}
@@ -65,9 +78,22 @@ export default function ProductCard({ product }) {
         </h3>
         
         {/* Price formatted in Bangladeshi Taka (৳) */}
-        <p className="font-sans text-sm font-semibold text-brand-crimson pt-0.5">
-          {formatPrice(product.price)}
-        </p>
+        <div className="flex items-center justify-center gap-2 pt-0.5">
+          {discounted ? (
+            <>
+              <span className="font-sans text-xs text-brand-stone line-through">
+                {formatPrice(product.price)}
+              </span>
+              <span className="font-sans text-sm font-semibold text-brand-crimson">
+                {formatPrice(effectivePrice)}
+              </span>
+            </>
+          ) : (
+            <p className="font-sans text-sm font-semibold text-brand-crimson">
+              {formatPrice(product.price)}
+            </p>
+          )}
+        </div>
       </div>
     </Link>
   );

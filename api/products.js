@@ -37,14 +37,18 @@ export default async function handler(req, res) {
 
     // POST — create new product
     if (req.method === 'POST') {
-      const { title_en, title_bn, category, subcategory, price, fabric, description, image_url, media_type, in_stock } = req.body || {};
+      const { title_en, title_bn, category, subcategory, price, discount_price, fabric, description, image_url, media_type, in_stock } = req.body || {};
       if (!title_en || !category || !price) {
         return res.status(400).json({ ok: false, error: 'title_en, category, and price are required' });
       }
       const normalizedMediaType = media_type === 'video' ? 'video' : 'image';
+      const normalizedDiscountPrice =
+        discount_price !== undefined && discount_price !== null && discount_price !== '' && Number(discount_price) > 0
+          ? Number(discount_price)
+          : null;
       const [product] = await sql`
-        INSERT INTO products (title_en, title_bn, category, subcategory, price, fabric, description, image_url, media_type, in_stock)
-        VALUES (${title_en}, ${title_bn || null}, ${category}, ${subcategory || null}, ${Number(price)},
+        INSERT INTO products (title_en, title_bn, category, subcategory, price, discount_price, fabric, description, image_url, media_type, in_stock)
+        VALUES (${title_en}, ${title_bn || null}, ${category}, ${subcategory || null}, ${Number(price)}, ${normalizedDiscountPrice},
                 ${fabric || null}, ${description || null}, ${image_url || null}, ${normalizedMediaType}, ${in_stock !== false})
         RETURNING *
       `;
@@ -53,9 +57,13 @@ export default async function handler(req, res) {
 
     // PUT — update product
     if (req.method === 'PUT') {
-      const { id, title_en, title_bn, category, subcategory, price, fabric, description, image_url, media_type, in_stock } = req.body || {};
+      const { id, title_en, title_bn, category, subcategory, price, discount_price, fabric, description, image_url, media_type, in_stock } = req.body || {};
       if (!id) return res.status(400).json({ ok: false, error: 'id is required' });
       const normalizedMediaType = media_type === 'video' ? 'video' : 'image';
+      const normalizedDiscountPrice =
+        discount_price !== undefined && discount_price !== null && discount_price !== '' && Number(discount_price) > 0
+          ? Number(discount_price)
+          : null;
       const [product] = await sql`
         UPDATE products SET
           title_en = ${title_en},
@@ -63,6 +71,7 @@ export default async function handler(req, res) {
           category = ${category},
           subcategory = ${subcategory || null},
           price = ${Number(price)},
+          discount_price = ${normalizedDiscountPrice},
           fabric = ${fabric || null},
           description = ${description || null},
           image_url = ${image_url || null},

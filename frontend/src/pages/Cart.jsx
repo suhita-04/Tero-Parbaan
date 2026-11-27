@@ -2,11 +2,13 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useLanguage, toBengaliNumerals } from '../context/LanguageContext';
+import { useStoreSettings } from '../context/StoreSettingsContext';
 import ProductMedia from '../components/product/ProductMedia';
 
 export default function Cart() {
   const { cartItems, removeFromCart, updateQuantity, totalPrice, totalCount } = useCart();
   const { t, formatPrice, getLocalizedField, language } = useLanguage();
+  const { storeSettings } = useStoreSettings();
 
   const countDisplay = language === 'bn' ? toBengaliNumerals(totalCount) : totalCount;
 
@@ -138,7 +140,9 @@ export default function Cart() {
                 </div>
                 <div className="flex justify-between text-brand-stone pb-2 border-b border-brand-border">
                   <span>{t('checkout_delivery_fee')}</span>
-                  <span className="text-brand-charcoal">৳ 80 - ৳ 150</span>
+                  <span className="text-brand-charcoal">
+                    ৳ {storeSettings.dhaka_delivery} - ৳ {storeSettings.outside_dhaka_delivery}
+                  </span>
                 </div>
                 <div className="flex justify-between items-baseline pt-1">
                   <span className="text-sm font-medium text-brand-charcoal">{t('checkout_grand_total')}</span>

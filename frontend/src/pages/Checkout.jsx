@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useLanguage, toBengaliNumerals } from '../context/LanguageContext';
+import { useStoreSettings } from '../context/StoreSettingsContext';
 import ProductMedia from '../components/product/ProductMedia';
 
 export default function Checkout() {
   const { cartItems, totalPrice, clearCart } = useCart();
   const { t, formatPrice, getLocalizedField, language } = useLanguage();
+  const { storeSettings } = useStoreSettings();
 
   // If cart is empty, provide a default mock item for testing checkout immediately
   const activeItems = cartItems.length > 0 ? cartItems : [
@@ -37,16 +39,15 @@ export default function Checkout() {
 
   const [placedOrder, setPlacedOrder] = useState(null);
 
-  // Delivery fee calculation
-  const deliveryFee = formData.cityZone === 'dhaka' ? 80 : 150;
+  // Live delivery fee calculation from /api/settings
+  const dhakaFee = Number(storeSettings?.dhaka_delivery ?? 80);
+  const outsideFee = Number(storeSettings?.outside_dhaka_delivery ?? 150);
+  const deliveryFee = formData.cityZone === 'dhaka' ? dhakaFee : outsideFee;
   const grandTotal = subtotal + deliveryFee;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.fullName || !formData.phone || !formData.address) return;
-
-    const deliveryFee = formData.cityZone === 'dhaka' ? 80 : 150;
-    const grandTotal = subtotal + deliveryFee;
 
     const orderPayload = {
       customer_name: formData.fullName,

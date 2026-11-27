@@ -2,11 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useLanguage, toBengaliNumerals } from '../../context/LanguageContext';
+import { useStoreSettings } from '../../context/StoreSettingsContext';
 import CustomerAuthModal from '../auth/CustomerAuthModal';
 
 export default function Navbar() {
   const { totalCount, totalPrice, openCart } = useCart();
   const { language, setLanguage, t, formatPrice } = useLanguage();
+  const { storeSettings } = useStoreSettings();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -95,6 +97,13 @@ export default function Navbar() {
 
   return (
     <>
+      {/* Optional Dynamic Storefront Notice Banner (controlled from /parbondesk Settings) */}
+      {storeSettings?.notice_active && storeSettings?.notice_text?.trim() && (
+        <div className="bg-brand-crimson text-white text-center text-[11px] sm:text-xs font-sans tracking-wider py-1.5 px-4 border-b border-[#C5A059]/40">
+          {storeSettings.notice_text}
+        </div>
+      )}
+
       {/* 1. Top Announcement Bar (above Navbar) */}
       <div className="bg-[#1A1A1A] text-[#FAF8F5] text-xs py-1.5 px-4 sm:px-8 border-b border-[#C5A059]/30">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useMemo } from 'react';
+import { getEffectivePrice } from '../utils/products';
 
 const CartContext = createContext(null);
 
@@ -10,6 +11,7 @@ export function CartProvider({ children }) {
   const addToCart = (product, options = {}) => {
     const size = options.size || product.defaultSize || 'Free Size';
     const color = options.color || product.defaultColor || 'Standard';
+    const unitPrice = getEffectivePrice(product);
 
     setCartItems((prevItems) => {
       const existingIndex = prevItems.findIndex(
@@ -20,6 +22,7 @@ export function CartProvider({ children }) {
         const updated = [...prevItems];
         updated[existingIndex] = {
           ...updated[existingIndex],
+          price: unitPrice,
           quantity: updated[existingIndex].quantity + 1,
         };
         return updated;
@@ -30,8 +33,9 @@ export function CartProvider({ children }) {
         {
           id: product.id,
           title: product.title,
-          price: product.price,
+          price: unitPrice,
           image: product.image,
+          mediaType: product.mediaType || product.media_type || 'image',
           category: product.category,
           size,
           color,
