@@ -1,15 +1,16 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
+import { useAdminAuth } from '../../context/AdminAuthContext';
 
 /**
  * ProtectedAdminRoute — guards /parbondesk.
- * Checks localStorage for 'pd_token' set after successful POST /api/admin-login.
+ * Checks in-memory AdminAuthContext token set after successful POST /api/admin-login.
  * Redirects to /parbondesk/login if not authenticated.
  */
 export default function ProtectedAdminRoute({ children }) {
-  const isAdmin = !!localStorage.getItem('pd_token');
+  const { adminToken } = useAdminAuth();
 
-  if (!isAdmin) {
+  if (!adminToken) {
     return <Navigate to="/parbondesk/login" replace />;
   }
 

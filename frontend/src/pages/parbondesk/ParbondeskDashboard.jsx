@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAdminAuth } from '../../context/AdminAuthContext';
 
 // ─── Status Badge ────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
@@ -143,11 +144,12 @@ export default function ParbondeskDashboard() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersErr, setOrdersErr] = useState('');
 
-  const token = localStorage.getItem('pd_token');
+  const { adminToken, clearAdminToken } = useAdminAuth();
+  const token = adminToken;
   const authHeader = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
 
   const handleLogout = () => {
-    localStorage.removeItem('pd_token');
+    clearAdminToken();
     navigate('/parbondesk/login', { replace: true });
   };
 

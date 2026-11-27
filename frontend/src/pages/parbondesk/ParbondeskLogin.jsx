@@ -1,17 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAdminAuth } from '../../context/AdminAuthContext';
 
 export default function ParbondeskLogin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (localStorage.getItem('pd_token')) {
-      navigate('/parbondesk', { replace: true });
-    }
-  }, [navigate]);
+  const { setAdminToken } = useAdminAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,7 +23,7 @@ export default function ParbondeskLogin() {
       const data = await res.json();
 
       if (data.ok && data.token) {
-        localStorage.setItem('pd_token', data.token);
+        setAdminToken(data.token);
         navigate('/parbondesk', { replace: true });
       } else {
         setError(data.error || 'Invalid credentials. Please try again.');
